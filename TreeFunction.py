@@ -9,6 +9,7 @@ import operator
 from inspect import signature
 import random as rd
 import math
+import numpy as np
 
 def safe_divide(a, b):
     """
@@ -22,7 +23,7 @@ def safe_divide(a, b):
     else:
         return a/b
 
-class TreeFunction:
+class TreeFunctionClass:
     def __init__(self,
             features,
             evaluate_fitness_f,
@@ -94,7 +95,7 @@ class TreeFunction:
             terminal = self._generate_terminal()
             return Node(terminal, parent = parent)
         else:
-            if rd.choice([True, False]):
+            if rd.choice([True, False]) or depth == 0:
                 operator = self._generate_operator()
                 sig = signature(operator)
                 arity = len(sig.parameters)
@@ -182,20 +183,24 @@ class TreeFunction:
             if mutation_point.is_terminal():
                 mutation_point.content = self._generate_terminal()
             else:
-                mutation_point.content = self._generate_operator() #MISSING: verify arity
+                mutation_point.content = self._generate_operator() #MISSING: specify arity
         elif self.mutation_method == "subtree":
             node_to_overwrite = rd.choice(nodes)
             subtree = self._generate_individual_grow(self.max_initial_depth, parent = node_to_overwrite.parent)
             if node_to_overwrite.is_root():
                 return subtree
             else:
-                parent = node_to_overwrite.parent
-                for i,child in enumerate(parent.children):
+                fooled_parent = node_to_overwrite.parent
+                for i,child in enumerate(fooled_parent.children):
                     if child == node_to_overwrite:
-                        parent.children[i] = subtree
+                        fooled_parent.children[i] = subtree
                         break
+            while not fooled_parent.is_root:
+                fooled_parent = fooled_parent.parent
+            if fooled_parent.parent is not None:
+                fooled_parent = fooled_parent.parent
 
-        return new_individual
+        return fooled_parent
         
     def crossover(self, first_parent, second_parent):
         """
@@ -207,7 +212,7 @@ class TreeFunction:
         second_nodes = self._collect_nodes(second_parent)
         crossover_section = rd.choice(second_nodes).copy()
         new_individual = first_parent.copy()
-        node_to_overwrite = rd.choice(self._collect_nodes(new_individual)[:1]) #ignores the root node
+        node_to_overwrite = rd.choice(self._collect_nodes(new_individual)) #ignores the root node
         if node_to_overwrite.is_root():
             return crossover_section
         else:
@@ -216,7 +221,11 @@ class TreeFunction:
                 if child == node_to_overwrite:
                     parent.children[i] = crossover_section
                     break
-            return new_individual
+            while not parent.is_root:
+                parent = parent.parent
+            if parent.parent is not None:
+                parent = parent.parent
+            return parent
     
 class Node:
     def __init__(self, content, *children, parent = None,):
@@ -233,7 +242,45 @@ class Node:
         self.children = []
         for child in children:
             self.children.append(child)
-        
+    
+    def is_terminal(self):
+        return self.children == []
+    
+    def is_root(self):
+        return self.parent is None
+
+    def my_max_depth(self, node=None, depth = 0, depths=[0]):
+        if node is None:
+            node = self
+        new_depth = depth + 1
+        depths.append(new_depth)
+        if node.is_terminal:
+            return(max(depths))
+        else:
+            for child in children:
+                depths.append(self.my_max_depth(child, new_depth, depths))
+            return max(depths)
+    
+    def copy(self, parent=None):        
+        the_copy = Node(self.content, parent = self.parent)
+        if not self.is_terminal():
+            for child in self.children:
+               the_copy.children.append(child.copy(parent = the_copy))
+        return the_copy
+
+    def __eq__(self, other):
+        if self.is_terminal and other.is_terminal:
+            return self.content == other.content
+        else:
+            children_length = len(self.children)
+            if children_length != len(other.children):
+                return False
+            else:
+                for i in range(children_length):
+                    if not self.__eq__(self.children[i], other.children[i]):
+                        return False
+                return True
+
     def __str__(self):
         if self.is_terminal():
             return str(self.content)
@@ -243,28 +290,7 @@ class Node:
                 name_string += " " + str(child)
             name_string += ")"
             return name_string
-    
-    def is_terminal(self):
-        return self.child == []
-    
-    def is_root(self):
-        return self.parent is None
 
-    def my_max_depth(self, node, depth = 0, depths=[0]):
-        new_depth = depth + 1
-        depths.append(new_depth)
-        if self.is_terminal:
-            return(max(depths))
-        else:
-            for child in children:
-                self.my_max_depth(child, new_depth, depths)
-    
-    def copy(self, parent=None):        
-        the_copy = Node(self.content, parent = self.parent)
-        if not self.is_terminal():
-            for child in self.children:
-               the_copy.children.append(child.copy(parent = the_copy))
-        return the_copy
 
 
 

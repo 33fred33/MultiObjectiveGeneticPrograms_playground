@@ -4,7 +4,28 @@
 Created on Thu Nov 28 10:52:52 2019
 
 @author: 33fred33 and Kevin Galligan
+
+Deep specifications:
+
+safe divide returns numerator if denominator = 0
+terminals can be integers used as indexes for features, or a random value between -1 and 1
+operators: +, -, *, safe divide
+
+mutation:
+    subtree method:
+        mutation point is a random node is selected from the indiviidual to mutate
+        mutation point is replaced with a random tree generated with koze's grow method and same max depth used for the initial population
+        while expected new depthafter mutation is greater than the maximum allowed, the new mutation point is now the parent of the old mutation point
+
+crossover:
+    a random subtree is taken from the second parent
+    a random node is selected in the first parent (excluding the root node to avoid depth=1 offsprings)
+    this random node is to be swapped with the second parent's subtree
+    if expected offspring's depth is greater than the maximum allowed, the second parent's subtree is replaced with a random subtree of itself
 """
+
+
+
 import operator
 from inspect import signature
 import random as rd
@@ -71,11 +92,11 @@ class TreeFunctionClass:
             operator.mul,
             safe_divide])
         
-    def _generate_individual_full(self, max_depth, parent=None, depth=0):
+    def _generate_individual_full(self, max_depth, parent=None, depth=0): #can be mixed with full
         """
         Generates a random individual using Koza's full method
         """
-        if depth == max_depth:
+        if depth == max_depth - 1:
             terminal = self._generate_terminal()
             return Node(terminal, parent = parent)
         else:
@@ -91,7 +112,7 @@ class TreeFunctionClass:
         """
         Generates a random individual using Koza's grow method
         """
-        if depth == max_depth:
+        if depth == max_depth - 1:
             terminal = self._generate_terminal()
             return Node(terminal, parent = parent)
         else:
@@ -156,20 +177,6 @@ class TreeFunctionClass:
             print("No correct initialisation method was given")
         return population
     
-    def _collect_nodes(self, root_node):
-        """
-        Positional arguments:
-            root_node: node
-        Returns a list with all the nodes existing in the tree with roo_node as the root node.
-        """
-        nodes = [root_node]
-        i = 0
-        while i < len(nodes):
-            if not nodes[i].is_terminal():
-                nodes.extend(nodes[i].children)
-            i += 1
-        return nodes
-    
     def mutate(self, parent):
         """
         Positional arguments:
@@ -177,16 +184,24 @@ class TreeFunctionClass:
         Returns the same tree with a mutation applied
         """
         new_individual = parent.copy()
-        nodes = self._collect_nodes(new_individual)
+
         if self.mutation_method == "unit":
-            mutation_point = rd.choice(nodes)
+            mutation_point = rd.choice(new_individual.subtree_nodes())
             if mutation_point.is_terminal():
                 mutation_point.content = self._generate_terminal()
             else:
                 mutation_point.content = self._generate_operator() #MISSING: specify arity
+                #MISSING: match with return
+
         elif self.mutation_method == "subtree":
-            node_to_overwrite = rd.choice(nodes)
+            node_to_overwrite = rd.choice(new_individual.subtree_nodes())
             subtree = self._generate_individual_grow(self.max_initial_depth, parent = node_to_overwrite.parent)
+
+            #max depth handling
+            while parent.my_depth() + (subtree.my_depth() - node_to_overwrite.my_depth()) > self.max_depth:
+                node_to_overwrite = node_to_overwrite.parent
+
+            #node replacing
             if node_to_overwrite.is_root():
                 return subtree
             else:
@@ -195,9 +210,8 @@ class TreeFunctionClass:
                     if child == node_to_overwrite:
                         fooled_parent.children[i] = subtree
                         break
-            while not fooled_parent.is_root:
-                fooled_parent = fooled_parent.parent
-            if fooled_parent.parent is not None:
+
+            while fooled_parent.parent is not None:
                 fooled_parent = fooled_parent.parent
 
         return fooled_parent
@@ -209,23 +223,35 @@ class TreeFunctionClass:
             second_parent: node
         Returns the offspring tree resulting from the crossover between the first_parent and the second_parent
         """
-        second_nodes = self._collect_nodes(second_parent)
-        crossover_section = rd.choice(second_nodes).copy()
+        crossover_section = rd.choice(second_parent.subtree_nodes()).copy()
         new_individual = first_parent.copy()
-        node_to_overwrite = rd.choice(self._collect_nodes(new_individual)) #ignores the root node
+        node_to_overwrite = rd.choice(new_individual.subtree_nodes()[1:])
+
+        #max depth handling
+        while crossover_section.my_depth() + node_to_overwrite.my_depth() > self.max_depth + 1:
+            if crossover_section.is_terminal():
+                print("In crossover node choice. This should never be reached")
+                break
+            print("NEEDED TO CHANGE!")
+            print("crossover_section.my_depth()",crossover_section.my_depth())
+            print("node_to_overwrite.my_depth()",node_to_overwrite.my_depth())
+            crossover_section = rd.choice(crossover_section.children)
+
         if node_to_overwrite.is_root():
+            print("In crossover overwrite. This should never be reached")
             return crossover_section
         else:
             parent = node_to_overwrite.parent
             for i,child in enumerate(parent.children):
                 if child == node_to_overwrite:
                     parent.children[i] = crossover_section
+                    crossover_section.parent = parent
                     break
-            while not parent.is_root:
-                parent = parent.parent
-            if parent.parent is not None:
-                parent = parent.parent
-            return parent
+
+            while crossover_section.parent is not None:
+                crossover_section = crossover_section.parent
+
+        return crossover_section
     
 class Node:
     def __init__(self, content, *children, parent = None,):
@@ -249,20 +275,32 @@ class Node:
     def is_root(self):
         return self.parent is None
 
-    def my_max_depth(self, node=None, depth = 0, depths=[0]):
-        if node is None:
-            node = self
+    def subtree_nodes(self):
+        """
+        Returns a list with all the nodes of the subtree with self as the root node.
+        Includes self in the list
+        """
+        nodes = [self]
+        i = 0
+        while i < len(nodes):
+            if not nodes[i].is_terminal():
+                nodes.extend(nodes[i].children)
+            i += 1
+        return nodes
+
+    def my_depth(self, depth = 0):
         new_depth = depth + 1
-        depths.append(new_depth)
-        if node.is_terminal:
-            return(max(depths))
+        if self.is_terminal():
+            return new_depth
         else:
-            for child in children:
-                depths.append(self.my_max_depth(child, new_depth, depths))
-            return max(depths)
+            return max([child.my_depth(new_depth) for child in self.children])
     
-    def copy(self, parent=None):        
-        the_copy = Node(self.content, parent = self.parent)
+    def copy(self, parent=None):
+        """
+        Don't give arguments
+        Returns an unrelated new individual with the same characteristics
+        """       
+        the_copy = Node(self.content, parent = parent)
         if not self.is_terminal():
             for child in self.children:
                the_copy.children.append(child.copy(parent = the_copy))

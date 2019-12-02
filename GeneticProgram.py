@@ -9,9 +9,6 @@ import math
 import random as rd
 import time
 
-#Global variables
-logs_level = 1
-
 class IndividualClass:
     def __init__(self, fenotype):
         self.fenotype = fenotype
@@ -77,24 +74,31 @@ class GeneticProgramClass:
         self.checkpoint_file_name = checkpoint_file_name
         
         #General variables initialisation
+        self.logs_level = 1
         self.darwin_champion = None
         self.population = []
         self.x_train = []
         self.y_train = []
         self.x_test = []
         self.y_test = []
+        self.fitness_method = None
         
     def fit(self
-        #, x_train
-        #, y_train
+        , x_train
+        , y_train
+        , fitness_method = "MSE"
         ):
         """
-        Executes the genetic program
-            
-        """
+        Positional arguments:
+            x_train
+            y_train
+        Keyword arguments:
+            fitness_method can be MSE, SPEA2, NSGA2
+        """  
         #variables assignment
-        #self.x_train = x_train
-        #self.y_train = y_train
+        self.x_train = x_train
+        self.y_train = y_train
+        self.fitness_method = fitness_method
         
         #Initial population initialisation
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
@@ -104,14 +108,14 @@ class GeneticProgramClass:
         mutations = math.ceil(self.population_size * self.mutation_ratio)
         crossovers = self.population_size - mutations
         
-        if logs_level >= 1:
+        if self.logs_level >= 1:
             print("population_size: ", self.population_size)
             print("mutations per gen: ", mutations)
             print("crossovers per gen: ", crossovers)
             
         for generation in range(self.generations):
             
-            if logs_level >= 1:
+            if self.logs_level >= 1:
                 print("Generation: ", generation)
                 start_time = time.time()
                 
@@ -139,7 +143,7 @@ class GeneticProgramClass:
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
             
-            if logs_level >= 1: 
+            if self.logs_level >= 1: 
                 print("Generation time: ", str(time.time() - start_time))
                 #print("Best individual so far: ", self.population[0].fenotype)
         
@@ -148,13 +152,36 @@ class GeneticProgramClass:
         
         return self.darwin_champion
     
-    def _evaluate_population(self): #each individual should receive x set
+    def _evaluate_population(self, test = False): #needs to be changed
+        if test:
+            x = self.x_test
+            y = self.y_test
+        else:
+            x = self.x_train
+            y = self.y_train
 
-        individuals_fitness = self.Model.evaluate([individual.fenotype for individual in self.population])
+        if self.fitness_method == "MSE":
+            evaluations = [self.Model.evaluate(individual.fenotype, x) for individual in self.population]
+            individuals_fitness = [self._MSE(y, y_predicted) for y_predicted in evaluations]
+
+        else: #old
+            individuals_fitness = self.Model.evaluate([individual.fenotype for individual in self.population])
+
         for i,individual in enumerate(self.population):
             individual.evaluation = individuals_fitness[i]
 
-    def single_goal_accuracy(self, y, y_predicted, goal_class):
+    def _MSE(self, y, y_predicted):
+        """
+        Positional arguments:
+            y is a list of labels
+            y_predicted is a predicted list of labels
+        Returns: Mean Squared Error as a float
+        """
+        n = len(y)
+        MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
+        return MSE
+
+    def _single_goal_accuracy(self, y, y_predicted, goal_class):
         """
         Positional arguments:
             y is a list of labels
@@ -167,7 +194,7 @@ class GeneticProgramClass:
         accuracy = corrects / total
         return accuracy
 
-    def crowding_distance(self, objective_values):
+    def _crowding_distance(self, objective_values):
         """
         Positional arguments:
             objective_values is a list of lists, with ordered values for each objective to be considered

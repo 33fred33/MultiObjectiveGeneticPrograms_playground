@@ -20,7 +20,7 @@ mutation:
 crossover:
     a random subtree is taken from the second parent
     a random node is selected in the first parent (excluding the root node to avoid depth=1 offsprings)
-    this random node is to be swapped with the second parent's subtree
+    this random node from the 1st aprent is to be swapped with the second parent's random subtree
     if expected offspring's depth is greater than the maximum allowed, the second parent's subtree is replaced with a random subtree of itself
 """
 
@@ -34,7 +34,7 @@ import numpy as np
 
 def safe_divide(a, b):
     """
-    Arguments:
+    Positional arguments:
         a is a number
         b is a number
     Executes a/b. If b=0, returns a
@@ -43,6 +43,19 @@ def safe_divide(a, b):
         return a
     else:
         return a/b
+
+def signed_if(condition, a, b):
+    """
+    Positional arguments:
+        condition is a number
+        a is a number
+        b is a number
+    Returns a if condition <= 0, b otherwise
+    """
+    if condition <= 0 :
+        return a
+    else:
+        return b
 
 class TreeFunctionClass:
     def __init__(self,
@@ -84,13 +97,15 @@ class TreeFunctionClass:
     def _generate_operator(self):
         """
         Generates an operator.
-        Operators can be add, sub, mul or safe divide
+        Operators can commented if not needed as an option
         """
         return rd.choice([
-            operator.add,
-            operator.sub,
-            operator.mul,
-            safe_divide])
+            operator.add
+            ,operator.sub
+            ,operator.mul
+            ,safe_divide
+            ,signed_if
+            ])
         
     def _generate_individual_full(self, max_depth, parent=None, depth=0): #can be mixed with full
         """
@@ -228,7 +243,7 @@ class TreeFunctionClass:
         node_to_overwrite = rd.choice(new_individual.subtree_nodes()[1:])
 
         #max depth handling
-        while crossover_section.my_depth() + node_to_overwrite.my_depth() > self.max_depth + 1:
+        while new_individual.my_depth() + (crossover_section.my_depth() - node_to_overwrite.my_depth()) > self.max_depth:
             if crossover_section.is_terminal():
                 print("In crossover node choice. This should never be reached")
                 break
@@ -252,6 +267,31 @@ class TreeFunctionClass:
                 crossover_section = crossover_section.parent
 
         return crossover_section
+
+    def evaluate(self, node, x):
+        """
+        Positional arguments:
+            node: root node from the tree to be evaluated
+            x: is the set of features
+        Returns all outputs for each row in x
+        """
+        y = [self.single_sample_evaluation(node, sample) for sample in x]
+        return y
+
+    def evaluate_single_sample(self, node, sample):
+        """
+        Positional arguments:
+            node: is the root of the tree to be evaluated
+            sample: is the single set of features from x to obtain a single y value
+        Returns a single value
+        """
+        if not node.is_terminal():
+            arguments = [self.evaluate_single_sample(child, sample) for child in node.children]
+            return node.content(*arguments)
+        elif isinstance(node.content, int):
+            return sample[node.content]
+        else:
+            return node.content
     
 class Node:
     def __init__(self, content, *children, parent = None,):
@@ -321,7 +361,10 @@ class Node:
 
     def __str__(self):
         if self.is_terminal():
-            return str(self.content)
+            if isinstance(self.content, int):
+                return "x" + str(self.content)
+            else:
+                return str(self.content)
         else:
             name_string = "(" + self.content.__name__
             for child in self.children:

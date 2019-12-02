@@ -19,8 +19,8 @@ class IndividualClass:
         
     def __lt__(self, other): #less than
         """
-        Each evaluation in this individual is used as a tiebreak for the previous one
-        """ #hola
+        Each evaluation value is the tiebreak for the previous one in the same individual
+        """
         if isinstance(self.evaluation, list):
             for eval_ind in range(len(self.evaluation)):
                 if self.evaluation[eval_ind] > other.evaluation[eval_ind]:
@@ -49,21 +49,22 @@ class GeneticProgramClass:
             generations,
             Model,
             sampling_method="tournament",
-            mutation_ratio=0.02,
+            mutation_ratio=0.4,
             tournament_size=2,
             checkpoint_file_name = None):
         """
-        Arguments:
-        population_size
-        generations
-        Model: class containing the methods:
-            generate_individual(n): initialises n random individuals
-            mutate(individual): returns the mutated the individual
-            crossover(individual1, individual2): returns the crossover offspring individual from the given individuals
-        sampling_method: can be tournament / weighted_random / random
-        mutation_ratio is the ratio of the next generation non-elite population to be filled with mutation-generated individuals
-        tournament_size only used if sampling method is tournament. Best out from randomly selected individuals will be selected for sampling
-        checkpoint_file_name
+        Positional arguments:
+            population_size
+            generations
+            Model: class containing the methods:
+                generate_individual(n): initialises n random individuals
+                mutate(individual): returns the mutated the individual
+                crossover(individual1, individual2): returns the crossover offspring individual from the given individuals
+        Keyword arguments:
+            sampling_method: can be tournament / weighted_random / random. Default is tournament
+            mutation_ratio is the ratio of the next generation non-elite population to be filled with mutation-generated individuals
+            tournament_size only used if sampling method is tournament. Best out from randomly selected individuals will be selected for sampling. Default is 2
+            checkpoint_file_name
         """  
         
         #Variables assignment
@@ -78,12 +79,22 @@ class GeneticProgramClass:
         #General variables initialisation
         self.darwin_champion = None
         self.population = []
+        self.x_train = []
+        self.y_train = []
+        self.x_test = []
+        self.y_test = []
         
-    def fit(self):
+    def fit(self
+        #, x_train
+        #, y_train
+        ):
         """
         Executes the genetic program
             
         """
+        #variables assignment
+        #self.x_train = x_train
+        #self.y_train = y_train
         
         #Initial population initialisation
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
@@ -137,10 +148,43 @@ class GeneticProgramClass:
         
         return self.darwin_champion
     
-    def _evaluate_population(self):
+    def _evaluate_population(self): #each individual should receive x set
+
         individuals_fitness = self.Model.evaluate([individual.fenotype for individual in self.population])
         for i,individual in enumerate(self.population):
             individual.evaluation = individuals_fitness[i]
+
+    def single_goal_accuracy(self, y, y_predicted, goal_class):
+        """
+        Positional arguments:
+            y is a list of labels
+            y_predicted is a predicted list of labels
+            goal_class is the label to be compared
+        Returns: y_predicted match ration with y, over the given goal class only, as a single float 
+        """
+        corrects = sum([1 if y_predicted[i] == self.y[i] and self.y[i] == goal_class else 0 for i in range(len(y))])
+        total = sum([1 if self.y[i] == goal_class else 0 for i in range(len(y))])
+        accuracy = corrects / total
+        return accuracy
+
+    def crowding_distance(self, objective_values):
+        """
+        Positional arguments:
+            objective_values is a list of lists, with ordered values for each objective to be considered
+        Returns: a list of values with a crowding distance as a float
+        """
+        items = list(zip(*objective_values, list(range(len(objective_values[0])))))
+        distances = defaultdict(list)
+        for objective_idx in range(len(objective_values)):
+            items.sort(key=lambda item: item[objective_idx])
+            distances[items[0][-1]].append(-np.inf)
+            distances[items[-1][-1]].append(-np.inf)
+            for i in range(1, len(items) - 1):
+                distances[items[i][-1]].append(items[i + 1][objective_idx] - items[i - 1][objective_idx])
+        indexes_mean_distances = [(item_index, sum(ds) / len(objective_values)) for item_index, ds in distances.items()]
+        indexes_mean_distances.sort(key=lambda t: t[0])
+        crowding_distances = [d for i, d in indexes_mean_distances]
+        return crowding_distances  
     
     def _weighted_random_sample(self, parent_population, amount, probabilities = None):
         """

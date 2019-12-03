@@ -4,7 +4,22 @@
 Created on Thu Nov 28 10:52:52 2019
 
 @author: 33fred33
+
+
+Especifications:
+
+GP structure:
+    - Initial popoulation is obtained and evaluated
+    - The amount of mutations and crossovers to happen at each generation is established according to the population size
+    - Generation structure:
+        Offsprings are calculated using crossover and mutation only
+        Parents and offsprings are evaluated together
+        The best ones stay in the next generation's population
+
+Tournament selection of size n: n individuals are uniformly randomly picked from the population. The best one is returned
+
 """
+
 import math
 import random as rd
 import time
@@ -103,6 +118,7 @@ class GeneticProgramClass:
         self.y_train = []
         self.x_test = []
         self.y_test = []
+        self.logs = {}
         
     def fit(self
         , x_train
@@ -122,6 +138,10 @@ class GeneticProgramClass:
         #Initial population initialisation
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
         self._evaluate_population()
+        self.population = sorted(self.population)
+
+        self.logs_checkpoint(0)
+
         if self.logs_level > 1:
             for i,ind in enumerate(self.population):
                 print("\n ", str(i), "th individual's evaluation = ", ind.evaluation)
@@ -136,7 +156,7 @@ class GeneticProgramClass:
             print("mutations per gen: ", mutations)
             print("crossovers per gen: ", crossovers)
             
-        for generation in range(self.generations):
+        for generation in range(1,self.generations):
             
             start_time = time.time()
             if self.logs_level >= 1:
@@ -165,6 +185,8 @@ class GeneticProgramClass:
             
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
+
+            self.logs_checkpoint(generation)
             
             print("Generation ", generation, " time: ", str(time.time() - start_time))
             print("Darwin champion evaluations: ", self.population[0].evaluation)
@@ -182,7 +204,7 @@ class GeneticProgramClass:
         return self.darwin_champion
 
     def predict(self, x):
-        prediction = self.Model.evaluate(self.darwin_champion.fenotype, x)
+        prediction = self.Model.evaluate(self.darwin_champion, x)
         return prediction
     
     def _evaluate_population(self, test = False): #needs to be changed
@@ -247,6 +269,12 @@ class GeneticProgramClass:
             winner = sorted(competitors)[0]
             selection.append(winner)               
         return selection
+
+    def logs_checkpoint(self, generation):
+        for ind_idx, individual in enumerate(self.population):
+            self.logs[(generation,ind_idx,"fenotype")] = str(individual.fenotype)
+            self.logs[(generation,ind_idx,"depth")] = individual.fenotype.my_depth()
+            self.logs[(generation,ind_idx,"evaluation")] = individual.evaluation
     
     def __str__(self):
         return str(self.__dict__)

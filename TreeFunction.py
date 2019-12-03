@@ -5,7 +5,7 @@ Created on Thu Nov 28 10:52:52 2019
 
 @author: 33fred33 and Kevin Galligan
 
-Deep specifications:
+Especifications:
 
 safe divide returns numerator if denominator = 0
 terminals can be integers used as indexes for features, or a random value between -1 and 1
@@ -13,74 +13,49 @@ operators: +, -, *, safe divide
 
 mutation:
     subtree method:
-        mutation point is a random node is selected from the indiviidual to mutate
-        mutation point is replaced with a random tree generated with koze's grow method and same max depth used for the initial population
-        while expected new depthafter mutation is greater than the maximum allowed, the new mutation point is now the parent of the old mutation point
+        mutation point is a random node from the indiviidual to mutate
+        mutation point is replaced with a random tree generated with koza's grow method, same max depth used for the initial population (3)
+        while expected new depth after mutation is greater than the maximum allowed, a new mutation point is selected: the parent of the old mutation point
 
 crossover:
     a random subtree is taken from the second parent
     a random node is selected in the first parent (excluding the root node to avoid depth=1 offsprings)
-    this random node from the 1st aprent is to be swapped with the second parent's random subtree
-    if expected offspring's depth is greater than the maximum allowed, the second parent's subtree is replaced with a random subtree of itself
+    this random node from the first parent is to be swapped with the second parent's random subtree
+    if expected offspring's depth is greater than the maximum allowed, the second parent's subtree is replaced with a random subtree from the second parent's subtree
 """
 
-
-
-import operator
 from inspect import signature
 import random as rd
-import math
 import numpy as np
-
-def safe_divide(a, b):
-    """
-    Positional arguments:
-        a is a number
-        b is a number
-    Executes a/b. If b=0, returns a
-    """
-    if b == 0 :
-        return a
-    else:
-        return a/b
-
-def signed_if(condition, a, b):
-    """
-    Positional arguments:
-        condition is a number
-        a is a number
-        b is a number
-    Returns a if condition <= 0, b otherwise
-    """
-    if condition <= 0 :
-        return a
-    else:
-        return b
+import math
 
 class TreeFunctionClass:
     def __init__(self,
             features,
+            operators,
             max_initial_depth = 3,
             max_depth = 15,
             initialisation_method = "ramped half half",
-            mutation_method = "subtree"):
+            mutation_method = "subtree",
+            bloat_control = "iteration"):
         """
         Positional arguments:
             features: number of features the tree will expect
-                Positional arguments:
-                    population: population to be evaluated.
-                Returns the list of evaluations
+            operators: a list with all the operations to be considered
         Keyword arguments:
             max_initial_depth: restricts depth of generated functions in their tree representation. Default is 3
             max_depth: stablishes the limit for the tree depth, to be tested after every mutation or crossover. Default is 15
             initialisation_method: can be "ramped half half", "grow", "full", "ramped full", "ramped grow", "half half". Default is ramped half half
             mutation_method: can be "subtree" or "unit". Default is subtree
+            bloat_control can be iteration or minimum decrease
         """
         self.features = features
+        self.operators = operators
         self.max_initial_depth = max_initial_depth
         self.max_depth = max_depth
         self.initialisation_method = initialisation_method
         self.mutation_method = mutation_method
+        self.bloat_control = bloat_control
     
     def _generate_terminal(self):
         """
@@ -96,13 +71,18 @@ class TreeFunctionClass:
         Generates an operator.
         Operators can commented if not needed as an option
         """
+        return rd.choice(self.operators)
+        """
         return rd.choice([
             operator.add
             ,operator.sub
             ,operator.mul
             ,safe_divide
             #,signed_if
+            #,math.sin
             ])
+        """
+
         
     def _generate_individual_full(self, max_depth, parent=None, depth=0): #can be mixed with full
         """
@@ -211,7 +191,14 @@ class TreeFunctionClass:
 
             #max depth handling
             while parent.my_depth() + (subtree.my_depth() - node_to_overwrite.my_depth()) > self.max_depth:
-                node_to_overwrite = node_to_overwrite.parent
+                if self.bloat_control == "iteration":
+                    node_to_overwrite = rd.choice(new_individual.subtree_nodes())
+                    subtree = self._generate_individual_grow(self.max_initial_depth, parent = node_to_overwrite.parent)
+                elif self.bloat_control == "minimum decrease":
+                    node_to_overwrite = node_to_overwrite.parent
+                else:
+                    print("No correct bloat control")
+                    break
 
             #node replacing
             if node_to_overwrite.is_root():
@@ -244,7 +231,14 @@ class TreeFunctionClass:
             if crossover_section.is_terminal():
                 print("In crossover node choice. This should never be reached")
                 break
-            crossover_section = rd.choice(crossover_section.children)
+            if self.bloat_control == "iteration":
+                node_to_overwrite = rd.choice(new_individual.subtree_nodes()[1:])
+                crossover_section = rd.choice(second_parent.subtree_nodes()).copy()
+            elif self.bloat_control == "minimum decrease":
+                crossover_section = rd.choice(crossover_section.children)
+            else:
+                print("No correct bloat control")
+                break
 
         if node_to_overwrite.is_root():
             print("In crossover overwrite. This should never be reached")
@@ -365,8 +359,6 @@ class Node:
                 name_string += " " + str(child)
             name_string += ")"
             return name_string
-
-
 
 
 

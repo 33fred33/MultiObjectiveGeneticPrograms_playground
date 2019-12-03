@@ -35,8 +35,7 @@ def accuracy(y, y_predicted):
     Positional arguments:
         y is a list of labels
         y_predicted is a predicted list of labels
-        goal_class is the label to be compared
-    Returns: y_predicted match ration with y, over the given goal class only, as a single float 
+    Returns: accuracy
     """
     corrects = sum([1 if y_predicted[i] == self.y[i] else 0 for i in range(len(y))])
     accuracy = corrects / len(y)

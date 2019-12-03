@@ -101,7 +101,7 @@ class TreeFunctionClass:
             ,operator.sub
             ,operator.mul
             ,safe_divide
-            ,signed_if
+            #,signed_if
             ])
         
     def _generate_individual_full(self, max_depth, parent=None, depth=0): #can be mixed with full

@@ -8,11 +8,12 @@ Created on Thu Nov 28 10:52:52 2019
 import math
 import random as rd
 import time
+import numpy as np
 
 class IndividualClass:
     def __init__(self, fenotype):
         self.fenotype = fenotype
-        self.evaluation = None
+        self.evaluation = []
         
     def __lt__(self, other): #less than
         """
@@ -45,6 +46,9 @@ class GeneticProgramClass:
             population_size,
             generations,
             Model,
+            objective_functions,
+            objective_functions_arguments = None, #[[f1_arg1, ..., f1_argn], [f2_arg1, ..., f2_argn], ..., [fn_arg1, ..., fn_argn]]
+            multiobjective_fitness = "SPEA2",
             sampling_method="tournament",
             mutation_ratio=0.4,
             tournament_size=2,
@@ -57,36 +61,52 @@ class GeneticProgramClass:
                 generate_individual(n): initialises n random individuals
                 mutate(individual): returns the mutated the individual
                 crossover(individual1, individual2): returns the crossover offspring individual from the given individuals
+            objective_functions: expects an array of functions with the following characteristics:
+                Positional arguments:
+                    y: labels or classes to be achieved
+                    y_predicted: a list of results to be compared with
+                    Returns a single float
         Keyword arguments:
+            objective_functions_arguments: list of list as: [[f1_arg1, ..., f1_argn], [f2_arg1, ..., f2_argn], ..., [fn_arg1, ..., fn_argn]]
+            multiobjective_fitness: can be SPEA2 or NSGA2. Default is SPEA2
             sampling_method: can be tournament / weighted_random / random. Default is tournament
             mutation_ratio is the ratio of the next generation non-elite population to be filled with mutation-generated individuals
             tournament_size only used if sampling method is tournament. Best out from randomly selected individuals will be selected for sampling. Default is 2
             checkpoint_file_name
         """  
         
-        #Variables assignment
+        #Positional arguments variables assignment
         self.population_size = population_size
         self.generations = generations
         self.Model = Model
+        if not isinstance(objective_functions, list):
+            objective_functions = [objective_functions]
+        self.objective_functions = objective_functions
+
+        #Keyword arguments variables assignment
+        if objective_functions_arguments is None:
+            self.objective_functions_arguments = [[] for _ in range(len(self.objective_functions))]
+        else:
+            self.objective_functions_arguments = objective_functions_arguments
+        self.multiobjective_fitness = multiobjective_fitness
         self.sampling_method = sampling_method
         self.mutation_ratio = mutation_ratio
         self.tournament_size = tournament_size
         self.checkpoint_file_name = checkpoint_file_name
         
         #General variables initialisation
-        self.logs_level = 1
+        self.logs_level = 0
+        self.objectives = len(self.objective_functions)
         self.darwin_champion = None
         self.population = []
         self.x_train = []
         self.y_train = []
         self.x_test = []
         self.y_test = []
-        self.fitness_method = None
         
     def fit(self
         , x_train
         , y_train
-        , fitness_method = "MSE"
         ):
         """
         Positional arguments:
@@ -98,7 +118,6 @@ class GeneticProgramClass:
         #variables assignment
         self.x_train = x_train
         self.y_train = y_train
-        self.fitness_method = fitness_method
         
         #Initial population initialisation
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
@@ -119,9 +138,9 @@ class GeneticProgramClass:
             
         for generation in range(self.generations):
             
+            start_time = time.time()
             if self.logs_level >= 1:
                 print("Generation: ", generation)
-                start_time = time.time()
                 
             #Parents selection
             if self.sampling_method == "tournament":    
@@ -147,10 +166,10 @@ class GeneticProgramClass:
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
             
-            if self.logs_level >= 1: 
-                print("Generation time: ", str(time.time() - start_time))
+            print("Generation ", generation, " time: ", str(time.time() - start_time))
+            print("Darwin champion evaluations: ", self.population[0].evaluation)
+            if self.logs_level >= 1:
                 print("Darwin champion: ", self.population[0].fenotype)
-                print("Darwin champion evaluations: ", self.population[0].evaluation)
                 #print("Best individual so far: ", self.population[0].fenotype)
                 if self.logs_level >= 2: 
                     for i,ind in enumerate(self.population):
@@ -161,6 +180,10 @@ class GeneticProgramClass:
         self.darwin_champion = self.population[0].fenotype
         
         return self.darwin_champion
+
+    def predict(self, x):
+        prediction = self.Model.evaluate(self.darwin_champion.fenotype, x)
+        return prediction
     
     def _evaluate_population(self, test = False): #needs to be changed
         if test:
@@ -170,39 +193,19 @@ class GeneticProgramClass:
             x = self.x_train
             y = self.y_train
 
-        if self.fitness_method == "MSE":
-            evaluations = [self.Model.evaluate(individual.fenotype, x) for individual in self.population]
-            individuals_fitness = [self._MSE(y, y_predicted) for y_predicted in evaluations]
+        objective_values = []
+        predictions = [self.Model.evaluate(individual.fenotype, x) for individual in self.population]
+        for obj_idx, objective_function in enumerate(self.objective_functions):
+            objective_values.append([objective_function(y, y_predicted, *self.objective_functions_arguments[obj_idx]) for y_predicted in predictions])
 
-        else: #old
-            individuals_fitness = self.Model.evaluate([individual.fenotype for individual in self.population])
-
-        for i,individual in enumerate(self.population):
-            individual.evaluation = individuals_fitness[i]
-
-    def _MSE(self, y, y_predicted):
-        """
-        Positional arguments:
-            y is a list of labels
-            y_predicted is a predicted list of labels
-        Returns: Mean Squared Error as a float
-        """
-        n = len(y)
-        MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
-        return MSE
-
-    def _single_goal_accuracy(self, y, y_predicted, goal_class):
-        """
-        Positional arguments:
-            y is a list of labels
-            y_predicted is a predicted list of labels
-            goal_class is the label to be compared
-        Returns: y_predicted match ration with y, over the given goal class only, as a single float 
-        """
-        corrects = sum([1 if y_predicted[i] == self.y[i] and self.y[i] == goal_class else 0 for i in range(len(y))])
-        total = sum([1 if self.y[i] == goal_class else 0 for i in range(len(y))])
-        accuracy = corrects / total
-        return accuracy
+        if self.objectives == 1:
+            for ind_idx, individual in enumerate(self.population):
+                individual.evaluation = [objective_values[0][ind_idx]]
+        else:
+            if self.multiobjective_fitness == "SPEA2":
+                pass
+            elif self.multiobjective_fitness == "NSGA2":
+                pass
 
     def _crowding_distance(self, objective_values):
         """

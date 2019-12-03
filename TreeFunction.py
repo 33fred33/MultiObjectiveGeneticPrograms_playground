@@ -60,7 +60,6 @@ def signed_if(condition, a, b):
 class TreeFunctionClass:
     def __init__(self,
             features,
-            evaluate_fitness_f,
             max_initial_depth = 3,
             max_depth = 15,
             initialisation_method = "ramped half half",
@@ -68,7 +67,6 @@ class TreeFunctionClass:
         """
         Positional arguments:
             features: number of features the tree will expect
-            evaluate_fitness_f: function to be called when evaluation is needed
                 Positional arguments:
                     population: population to be evaluated.
                 Returns the list of evaluations
@@ -79,7 +77,6 @@ class TreeFunctionClass:
             mutation_method: can be "subtree" or "unit". Default is subtree
         """
         self.features = features
-        self.evaluate = evaluate_fitness_f
         self.max_initial_depth = max_initial_depth
         self.max_depth = max_depth
         self.initialisation_method = initialisation_method
@@ -247,9 +244,6 @@ class TreeFunctionClass:
             if crossover_section.is_terminal():
                 print("In crossover node choice. This should never be reached")
                 break
-            print("NEEDED TO CHANGE!")
-            print("crossover_section.my_depth()",crossover_section.my_depth())
-            print("node_to_overwrite.my_depth()",node_to_overwrite.my_depth())
             crossover_section = rd.choice(crossover_section.children)
 
         if node_to_overwrite.is_root():
@@ -275,7 +269,7 @@ class TreeFunctionClass:
             x: is the set of features
         Returns all outputs for each row in x
         """
-        y = [self.single_sample_evaluation(node, sample) for sample in x]
+        y = [self.evaluate_single_sample(node, sample) for sample in x]
         return y
 
     def evaluate_single_sample(self, node, sample):

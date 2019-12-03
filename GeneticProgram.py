@@ -103,6 +103,10 @@ class GeneticProgramClass:
         #Initial population initialisation
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
         self._evaluate_population()
+        if self.logs_level > 1:
+            for i,ind in enumerate(self.population):
+                print("\n ", str(i), "th individual's evaluation = ", ind.evaluation)
+            input("wait!")
         
         #amounts of each population type and procedence     
         mutations = math.ceil(self.population_size * self.mutation_ratio)
@@ -145,10 +149,16 @@ class GeneticProgramClass:
             
             if self.logs_level >= 1: 
                 print("Generation time: ", str(time.time() - start_time))
+                print("Darwin champion: ", self.population[0].fenotype)
+                print("Darwin champion evaluations: ", self.population[0].evaluation)
                 #print("Best individual so far: ", self.population[0].fenotype)
+                if self.logs_level >= 2: 
+                    for i,ind in enumerate(self.population):
+                        print("\n ", str(i), "th individual's evaluation = ", ind.evaluation)
+                    input("wait!") 
         
         #final individual selection
-        self.darwin_champion = self.population[0]
+        self.darwin_champion = self.population[0].fenotype
         
         return self.darwin_champion
     

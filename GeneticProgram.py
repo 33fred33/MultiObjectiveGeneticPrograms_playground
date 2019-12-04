@@ -24,6 +24,7 @@ import math
 import random as rd
 import time
 import numpy as np
+from collections import defaultdict
 
 class IndividualClass:
     def __init__(self, fenotype):
@@ -136,11 +137,12 @@ class GeneticProgramClass:
         self.y_train = y_train
         
         #Initial population initialisation
+        start_time = time.time()
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
         self._evaluate_population()
         self.population = sorted(self.population)
 
-        self.logs_checkpoint(0)
+        self.logs_checkpoint(0, time.time() - start_time)
 
         if self.logs_level > 1:
             for i,ind in enumerate(self.population):
@@ -186,7 +188,7 @@ class GeneticProgramClass:
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
 
-            self.logs_checkpoint(generation)
+            self.logs_checkpoint(generation, time.time() - start_time)
             
             print("Generation ", generation, " time: ", str(time.time() - start_time))
             print("Darwin champion evaluations: ", self.population[0].evaluation)
@@ -207,12 +209,10 @@ class GeneticProgramClass:
         prediction = self.Model.evaluate(self.darwin_champion, x)
         return prediction
     
-    def _evaluate_population(self, test = False): #needs to be changed
-        if test:
-            x = self.x_test
-            y = self.y_test
-        else:
+    def _evaluate_population(self, x = None, y = None):
+        if x is None:
             x = self.x_train
+        if y is None:
             y = self.y_train
 
         objective_values = []
@@ -225,9 +225,14 @@ class GeneticProgramClass:
                 individual.evaluation = [objective_values[0][ind_idx]]
         else:
             if self.multiobjective_fitness == "SPEA2":
-                pass
+                print("objective_values[0]", objective_values[0])
+                print("objective_values shape", np.array(objective_values).shape)
+                self._spea2(objective_values)
             elif self.multiobjective_fitness == "NSGA2":
                 pass
+            crowding_distances = self._crowding_distance(objective_values)
+            for ind_idx, individual in enumerate(self.population):
+                individual.evaluation.append(crowding_distances[ind_idx])
 
     def _crowding_distance(self, objective_values):
         """
@@ -246,7 +251,42 @@ class GeneticProgramClass:
         indexes_mean_distances = [(item_index, sum(ds) / len(objective_values)) for item_index, ds in distances.items()]
         indexes_mean_distances.sort(key=lambda t: t[0])
         crowding_distances = [d for i, d in indexes_mean_distances]
-        return crowding_distances  
+        return crowding_distances
+
+    def _spea2(self, objective_values):
+
+        #strengths calculation
+        strengths = []
+        for ind_idx in range(self.population_size):
+            dominated_solutions = 0
+            for comparison_ind_idx in range(self.population_size):
+                dominated = True
+                for obj_idx in range(self.objectives):
+                    if objective_values[obj_idx][ind_idx] < objective_values[obj_idx][comparison_ind_idx]:
+                        dominated = False
+                        break
+                if dominated:
+                    dominated_solutions += 1   
+            strengths.append(dominated_solutions - 1)
+
+        #strengths sum
+        evaluations = []
+        for ind_idx in range(self.population_size):
+            total_strengths = 0
+            for comparison_ind_idx in range(self.population_size):
+                dominates_me = True
+                for obj_idx in range(self.objectives):
+                    if objective_values[obj_idx][ind_idx] >= objective_values[obj_idx][comparison_ind_idx]:
+                        dominates_me = False
+                        break
+                if dominates_me:
+                    total_strengths += strengths[comparison_ind_idx]
+            evaluations.append(total_strengths) 
+        print("evaluations shape", np.array(evaluations).shape)
+        print("evaluations 0", evaluations[0])
+        
+        for ind_idx, individual in enumerate(self.population):
+            individual.evaluation.append(evaluations[ind_idx])
     
     def _weighted_random_sample(self, parent_population, amount, probabilities = None):
         """
@@ -270,11 +310,13 @@ class GeneticProgramClass:
             selection.append(winner)               
         return selection
 
-    def logs_checkpoint(self, generation):
+    def logs_checkpoint(self, generation, gen_time):
         for ind_idx, individual in enumerate(self.population):
             self.logs[(generation,ind_idx,"fenotype")] = str(individual.fenotype)
             self.logs[(generation,ind_idx,"depth")] = individual.fenotype.my_depth()
+            self.logs[(generation,ind_idx,"length")] = len(individual.fenotype.subtree_nodes())
             self.logs[(generation,ind_idx,"evaluation")] = individual.evaluation
+            self.logs[(generation, "time")] = gen_time
     
     def __str__(self):
         return str(self.__dict__)

@@ -9,7 +9,7 @@ Created on Thu Nov 28 10:52:52 2019
 Especifications:
 
 GP structure:
-    - Initial popoulation is obtained and evaluated
+    - Initial population is obtained and evaluated
     - The amount of mutations and crossovers to happen at each generation is established according to the population size
     - Generation structure:
         Offsprings are calculated using crossover and mutation only
@@ -24,12 +24,16 @@ import math
 import random as rd
 import time
 import numpy as np
+import matplotlib.pyplot as plt
+import pylab as py
 from collections import defaultdict
+import datetime
 
 class IndividualClass:
-    def __init__(self, fenotype):
+    def __init__(self, fenotype, objective_values = None):
         self.fenotype = fenotype
         self.evaluation = []
+        self.objective_values = objective_values
         
     def __lt__(self, other): #less than
         """
@@ -54,7 +58,7 @@ class IndividualClass:
             return self.evaluation == other.evaluation
     
     def __str__(self):
-        return str(self.fenotype)
+        return "Fenotype: " + str(self.fenotype) + " Evaluations: " + str(self.evaluation)
 
 class GeneticProgramClass:
     def __init__(
@@ -120,6 +124,7 @@ class GeneticProgramClass:
         self.x_test = []
         self.y_test = []
         self.logs = {}
+        self.ran_generations = 0
         
     def fit(self
         , x_train
@@ -135,6 +140,7 @@ class GeneticProgramClass:
         #variables assignment
         self.x_train = x_train
         self.y_train = y_train
+        self.ran_generations = 0
         
         #Initial population initialisation
         start_time = time.time()
@@ -142,7 +148,7 @@ class GeneticProgramClass:
         self._evaluate_population()
         self.population = sorted(self.population)
 
-        self.logs_checkpoint(0, time.time() - start_time)
+        self.logs_checkpoint(time.time() - start_time)
 
         if self.logs_level > 1:
             for i,ind in enumerate(self.population):
@@ -159,6 +165,7 @@ class GeneticProgramClass:
             print("crossovers per gen: ", crossovers)
             
         for generation in range(1,self.generations):
+            self.ran_generations = generation
             
             start_time = time.time()
             if self.logs_level >= 1:
@@ -188,10 +195,11 @@ class GeneticProgramClass:
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
 
-            self.logs_checkpoint(generation, time.time() - start_time)
+            self.logs_checkpoint(time.time() - start_time)
             
             print("Generation ", generation, " time: ", str(time.time() - start_time))
             print("Darwin champion evaluations: ", self.population[0].evaluation)
+            print("Darwin champion: ", self.population[0].fenotype)
             if self.logs_level >= 1:
                 print("Darwin champion: ", self.population[0].fenotype)
                 #print("Best individual so far: ", self.population[0].fenotype)
@@ -215,24 +223,61 @@ class GeneticProgramClass:
         if y is None:
             y = self.y_train
 
+
+
+        for ind_idx, individual in enumerate(self.population):
+            if individual.objective_values is None:
+                prediction = self.Model.evaluate(individual.fenotype, x)
+                individual.objective_values = [objective_function(y, prediction, *self.objective_functions_arguments[obj_idx]) for obj_idx, objective_function in enumerate(self.objective_functions)]
+
+        """
         objective_values = []
         predictions = [self.Model.evaluate(individual.fenotype, x) for individual in self.population]
         for obj_idx, objective_function in enumerate(self.objective_functions):
             objective_values.append([objective_function(y, y_predicted, *self.objective_functions_arguments[obj_idx]) for y_predicted in predictions])
+        """
 
         if self.objectives == 1:
             for ind_idx, individual in enumerate(self.population):
-                individual.evaluation = [objective_values[0][ind_idx]]
+                #individual.evaluation = [objective_values[0][ind_idx]]
+                individual.evaluation = individual.objective_values[0]
         else:
             if self.multiobjective_fitness == "SPEA2":
-                print("objective_values[0]", objective_values[0])
-                print("objective_values shape", np.array(objective_values).shape)
-                self._spea2(objective_values)
+                #[print(idx, individual.objective_values) for idx, individual in enumerate(self.population)]
+                objective_values = [[individual.objective_values[obj_idx] for individual in self.population] for obj_idx in range(self.objectives)] #added
+                evaluations = self._spea2(objective_values)
+
+                for ind_idx, individual in enumerate(self.population):
+                    individual.evaluation = [evaluations[ind_idx]]
+
+                title = "Gen " + str(self.ran_generations)
+                colored_plot(objective_values[0], 
+                                  objective_values[1], 
+                                  evaluations, 
+                                  title = title, 
+                                  colormap = "cool", 
+                                  markers = evaluations,
+                                  marker_size = 200,
+                                  save = True)
+        
+
             elif self.multiobjective_fitness == "NSGA2":
                 pass
+
             crowding_distances = self._crowding_distance(objective_values)
             for ind_idx, individual in enumerate(self.population):
                 individual.evaluation.append(crowding_distances[ind_idx])
+        """ 
+        print("y: ", y[5])
+        print("x: ", x[5])
+        print("func: ", self.population[20].fenotype)
+        print("y_pred: ", predictions[20][5])
+        print("obj1: ", objective_values[0][20])
+        print("obj2: ", objective_values[1][20])
+        print("spea2: ", evaluations[20])
+        print("cd: ", crowding_distances[20])
+        print("evals: ", self.population[20].evaluation)
+        """
 
     def _crowding_distance(self, objective_values):
         """
@@ -251,15 +296,18 @@ class GeneticProgramClass:
         indexes_mean_distances = [(item_index, sum(ds) / len(objective_values)) for item_index, ds in distances.items()]
         indexes_mean_distances.sort(key=lambda t: t[0])
         crowding_distances = [d for i, d in indexes_mean_distances]
-        return crowding_distances
+        max_cd = max(crowding_distances)
+        inverted_crowding_distances = [max_cd - cd for cd in crowding_distances]
+        return inverted_crowding_distances
 
     def _spea2(self, objective_values):
 
         #strengths calculation
+        individuals = len(objective_values[0])
         strengths = []
-        for ind_idx in range(self.population_size):
+        for ind_idx in range(individuals):
             dominated_solutions = 0
-            for comparison_ind_idx in range(self.population_size):
+            for comparison_ind_idx in range(individuals):
                 dominated = True
                 for obj_idx in range(self.objectives):
                     if objective_values[obj_idx][ind_idx] < objective_values[obj_idx][comparison_ind_idx]:
@@ -271,9 +319,9 @@ class GeneticProgramClass:
 
         #strengths sum
         evaluations = []
-        for ind_idx in range(self.population_size):
+        for ind_idx in range(individuals):
             total_strengths = 0
-            for comparison_ind_idx in range(self.population_size):
+            for comparison_ind_idx in range(individuals):
                 dominates_me = True
                 for obj_idx in range(self.objectives):
                     if objective_values[obj_idx][ind_idx] >= objective_values[obj_idx][comparison_ind_idx]:
@@ -281,12 +329,9 @@ class GeneticProgramClass:
                         break
                 if dominates_me:
                     total_strengths += strengths[comparison_ind_idx]
-            evaluations.append(total_strengths) 
-        print("evaluations shape", np.array(evaluations).shape)
-        print("evaluations 0", evaluations[0])
-        
-        for ind_idx, individual in enumerate(self.population):
-            individual.evaluation.append(evaluations[ind_idx])
+            evaluations.append(total_strengths)
+
+        return evaluations
     
     def _weighted_random_sample(self, parent_population, amount, probabilities = None):
         """
@@ -310,15 +355,49 @@ class GeneticProgramClass:
             selection.append(winner)               
         return selection
 
-    def logs_checkpoint(self, generation, gen_time):
+    def logs_checkpoint(self, gen_time):
         for ind_idx, individual in enumerate(self.population):
-            self.logs[(generation,ind_idx,"fenotype")] = str(individual.fenotype)
-            self.logs[(generation,ind_idx,"depth")] = individual.fenotype.my_depth()
-            self.logs[(generation,ind_idx,"length")] = len(individual.fenotype.subtree_nodes())
-            self.logs[(generation,ind_idx,"evaluation")] = individual.evaluation
-            self.logs[(generation, "time")] = gen_time
+            self.logs[(self.ran_generations,ind_idx,"fenotype")] = str(individual.fenotype)
+            self.logs[(self.ran_generations,ind_idx,"depth")] = individual.fenotype.my_depth()
+            self.logs[(self.ran_generations,ind_idx,"length")] = len(individual.fenotype.subtree_nodes())
+            self.logs[(self.ran_generations,ind_idx,"evaluation")] = individual.evaluation
+            self.logs[(self.ran_generations, "time")] = gen_time
     
     def __str__(self):
         return str(self.__dict__)
+
+def colored_plot(x, y, values, title = "", colormap = "cool", markers = None, marker_size = 50, save = False):
+        now = datetime.datetime.now()
+        f = plt.figure()   
+        f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
+        """points are x, y pairs, values are used for graduated coloring"""
+        max_value = max(values)
+        min_value = min(values)
+        colors = [(1 - (value - min_value)) / (max_value - min_value + 0.001) for value in values]
+        if markers is None:
+            plt.scatter(x, y, 
+                        c = colors, 
+                        cmap = colormap, 
+                        alpha = 0.6)
+        else:
+            markers = [str(marker) for marker in markers]
+            data = [[x[i], y[i], markers[i]] for i in range(len(x))]
+            for i, d in enumerate(data):
+                py.scatter(d[0], d[1], 
+                            marker = r"$ {} $".format(d[2]),
+                            s = marker_size,
+                            edgecolors='none',
+                            #c = colors[i], 
+                            cmap = colormap, 
+                            alpha = 0.9)
+        plt.title(title)
+        plt.xlabel("Objective 1: Accuracy in majority class")
+        plt.ylabel("Objective 2: Accuracy in minority class")
+        plt.grid()
+        
+        if save:
+            name = "outputs/" + str(now.year) + "-" + str(now.month) + "-" + str(now.day) + "-" + str(now.hour) + "-" + str(now.minute) + "-" + title + ".png"
+            plt.savefig(name)
+        plt.show()
     
     

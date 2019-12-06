@@ -371,6 +371,7 @@ class GeneticProgramClass:
             self.logs[(self.ran_generations,ind_idx,"depth")] = individual.fenotype.my_depth()
             self.logs[(self.ran_generations,ind_idx,"nodes")] = individual.fenotype.nodes_count()
             self.logs[(self.ran_generations,ind_idx,"evaluation")] = individual.evaluation
+            self.logs[(self.ran_generations,ind_idx,"objective_values")] = individual.objective_values
             #self.logs[(self.ran_generations, "time")] = gen_time
             logs_to_file(self.logs, self.experiment_name)
     

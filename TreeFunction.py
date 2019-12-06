@@ -316,7 +316,16 @@ class Node:
             i += 1
         return nodes
 
+    def nodes_count(self):
+        """
+        Returns the number of nodes in this tree (including this node as the root) as an int
+        """
+        return len(self.subtree_nodes())
+
     def my_depth(self, depth = 0):
+        """
+        Returns the max depth of this tree as an int
+        """
         new_depth = depth + 1
         if self.is_terminal():
             return new_depth

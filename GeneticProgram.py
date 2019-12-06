@@ -28,6 +28,9 @@ import matplotlib.pyplot as plt
 import pylab as py
 from collections import defaultdict
 import datetime
+import os
+import errno
+import csv
 
 class IndividualClass:
     def __init__(self, fenotype, objective_values = None):
@@ -72,7 +75,7 @@ class GeneticProgramClass:
             sampling_method="tournament",
             mutation_ratio=0.4,
             tournament_size=2,
-            checkpoint_file_name = None):
+            experiment_name = None):
         """
         Positional arguments:
             population_size
@@ -92,7 +95,7 @@ class GeneticProgramClass:
             sampling_method: can be tournament / weighted_random / random. Default is tournament
             mutation_ratio is the ratio of the next generation non-elite population to be filled with mutation-generated individuals
             tournament_size only used if sampling method is tournament. Best out from randomly selected individuals will be selected for sampling. Default is 2
-            checkpoint_file_name
+            experiment_name is a string, used to create a new folder to store the outputs
         """  
         
         #Positional arguments variables assignment
@@ -112,7 +115,11 @@ class GeneticProgramClass:
         self.sampling_method = sampling_method
         self.mutation_ratio = mutation_ratio
         self.tournament_size = tournament_size
-        self.checkpoint_file_name = checkpoint_file_name
+        if experiment_name is None:
+            now = datetime.datetime.now()
+            self.experiment_name = str(now.year) + "-" + str(now.month) + "-" + str(now.day) + "-" + str(now.hour) + "-" + str(now.minute)
+        else:
+            self.experiment_name = experiment_name
         
         #General variables initialisation
         self.logs_level = 0
@@ -228,7 +235,9 @@ class GeneticProgramClass:
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
                 prediction = self.Model.evaluate(individual.fenotype, x)
-                individual.objective_values = [objective_function(y, prediction, *self.objective_functions_arguments[obj_idx]) for obj_idx, objective_function in enumerate(self.objective_functions)]
+                individual.objective_values = [objective_function(y, prediction, *self.objective_functions_arguments[obj_idx]) 
+                    for obj_idx, objective_function 
+                    in enumerate(self.objective_functions)]
 
         """
         objective_values = []
@@ -258,7 +267,8 @@ class GeneticProgramClass:
                                   colormap = "cool", 
                                   markers = evaluations,
                                   marker_size = 200,
-                                  save = True)
+                                  save = True,
+                                  path = self.experiment_name)
         
 
             elif self.multiobjective_fitness == "NSGA2":
@@ -359,15 +369,43 @@ class GeneticProgramClass:
         for ind_idx, individual in enumerate(self.population):
             self.logs[(self.ran_generations,ind_idx,"fenotype")] = str(individual.fenotype)
             self.logs[(self.ran_generations,ind_idx,"depth")] = individual.fenotype.my_depth()
-            self.logs[(self.ran_generations,ind_idx,"length")] = len(individual.fenotype.subtree_nodes())
+            self.logs[(self.ran_generations,ind_idx,"nodes")] = individual.fenotype.nodes_count()
             self.logs[(self.ran_generations,ind_idx,"evaluation")] = individual.evaluation
-            self.logs[(self.ran_generations, "time")] = gen_time
+            #self.logs[(self.ran_generations, "time")] = gen_time
+            logs_to_file(self.logs, self.experiment_name)
     
     def __str__(self):
         return str(self.__dict__)
 
-def colored_plot(x, y, values, title = "", colormap = "cool", markers = None, marker_size = 50, save = False):
-        now = datetime.datetime.now()
+def verify_path(tpath):
+    if tpath is None:
+        return ""
+    else:
+        if tpath[-1] != "/":
+            tpath = "outputs/" + tpath + "/"
+
+        if not os.path.exists(os.path.dirname(tpath)):
+            try:
+                os.makedirs(os.path.dirname(tpath))
+            except OSError as exc: # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
+        return tpath
+
+def logs_to_file(logs, path):
+    """
+    logs is a dictionary
+    """
+    path = verify_path(path)
+    with open(path + "logs.csv", mode='w') as logs_file:
+        logs_writer = csv.writer(logs_file, delimiter=',')
+        logs_writer.writerow(['generation', 'individual_index', 'name', 'value'])
+        for key, value in logs.items():
+            logs_writer.writerow([str(key[0]), str(key[1]), key[2], str(value)])
+
+
+def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None):
+        path = verify_path(path)
         f = plt.figure()   
         f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
         """points are x, y pairs, values are used for graduated coloring"""
@@ -396,8 +434,9 @@ def colored_plot(x, y, values, title = "", colormap = "cool", markers = None, ma
         plt.grid()
         
         if save:
-            name = "outputs/" + str(now.year) + "-" + str(now.month) + "-" + str(now.day) + "-" + str(now.hour) + "-" + str(now.minute) + "-" + title + ".png"
+            name = path + title + ".png"
             plt.savefig(name)
-        plt.show()
+        #plt.show()
+        #plt.ioff()
     
     

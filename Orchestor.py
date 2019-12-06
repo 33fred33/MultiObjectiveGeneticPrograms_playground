@@ -66,7 +66,7 @@ NewGP = gp.GeneticProgramClass(population_size = 100,
             sampling_method="tournament",
             mutation_ratio=0.4,
             tournament_size=2,
-            checkpoint_file_name = None)
+            experiment_name = "Pedestrian_6_6_0_pop100_mr40_ts2")
 
 #Execution
 start_time = time.time()

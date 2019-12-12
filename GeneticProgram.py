@@ -20,6 +20,9 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 
 """
 
+#REORDENAR LOGS PARA MENOS FILAS
+#FEATURES SVM
+
 import math
 import random as rd
 import time
@@ -223,6 +226,24 @@ class GeneticProgramClass:
     def predict(self, x):
         prediction = self.Model.evaluate(self.darwin_champion, x)
         return prediction
+
+    def load_from_file(self, file_name):
+        """
+        Positional arguments:
+            file_name: expect the path + file name in string format
+        Retrieves the population for the last generation from the file
+        File format:
+            Each row is an individual
+            First column: Generation
+            Second: Fenotype
+            Evaluations
+            Objective values
+        """
+
+
+
+
+
     
     def _evaluate_population(self, x = None, y = None):
         if x is None:
@@ -367,11 +388,20 @@ class GeneticProgramClass:
 
     def logs_checkpoint(self, gen_time):
         for ind_idx, individual in enumerate(self.population):
+            """
             self.logs[(self.ran_generations,ind_idx,"fenotype")] = str(individual.fenotype)
             self.logs[(self.ran_generations,ind_idx,"depth")] = individual.fenotype.my_depth()
             self.logs[(self.ran_generations,ind_idx,"nodes")] = individual.fenotype.nodes_count()
             self.logs[(self.ran_generations,ind_idx,"evaluation")] = individual.evaluation
             self.logs[(self.ran_generations,ind_idx,"objective_values")] = individual.objective_values
+            """
+            self.logs[(self.ran_generations,ind_idx)] = [
+                str(individual.fenotype) 
+                ,individual.fenotype.my_depth()
+                ,individual.fenotype.nodes_count()
+                ,*individual.evaluation
+                ,*individual.objective_values]
+
             #self.logs[(self.ran_generations, "time")] = gen_time
             logs_to_file(self.logs, self.experiment_name)
     
@@ -393,19 +423,20 @@ def verify_path(tpath):
                     raise
         return tpath
 
-def logs_to_file(logs, path):
+def logs_to_file(logs, path): #some hardcoded rules
     """
     logs is a dictionary
     """
     path = verify_path(path)
     with open(path + "logs.csv", mode='w') as logs_file:
         logs_writer = csv.writer(logs_file, delimiter=',')
-        logs_writer.writerow(['generation', 'individual_index', 'name', 'value'])
+        logs_writer.writerow(['generation', 'individual_index', 'fenotype', 'depth', 'nodes', 'evaluation1', 'evaluation2', 'objective_value1', 'objective_value2'])
         for key, value in logs.items():
-            logs_writer.writerow([str(key[0]), str(key[1]), key[2], str(value)])
+            values = [str(v) for v in value]
+            logs_writer.writerow([str(key[0]), str(key[1]), *values])
 
 
-def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None):
+def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None):  #some hardcoded rules
         path = verify_path(path)
         f = plt.figure()   
         f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
@@ -437,7 +468,6 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
         if save:
             name = path + title + ".png"
             plt.savefig(name)
-        #plt.show()
-        #plt.ioff()
+        plt.close('all')
     
     

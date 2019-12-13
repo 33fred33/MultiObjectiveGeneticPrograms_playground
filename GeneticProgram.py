@@ -227,18 +227,30 @@ class GeneticProgramClass:
         prediction = self.Model.evaluate(self.darwin_champion, x)
         return prediction
 
-    def load_from_file(self, file_name):
+    def load_from_file(self, file_name, desired_generation = None):
         """
         Positional arguments:
             file_name: expect the path + file name in string format
-        Retrieves the population for the last generation from the file
+        Retrieves the population for the last generation from the file.
+        It will overwrite current population.
         File format:
             Each row is an individual
-            First column: Generation
-            Second: Fenotype
-            Evaluations
-            Objective values
-        """
+            First row is headers
+            Minimum column names: generation, fenotype
+        """#wroing
+        with open(file_name, mode="r") as read_file:
+            reader = csv.DictReader(read_file)
+            max_gen =  max([row["generation"] for row in reader])
+            if desired_generation is None or desired_generation > max_gen:
+                desired_generation =  max_gen
+            #print(reader[0])
+            for row in reader:
+                print(row)
+                if row["generation"] == desired_generation:
+                    print("row[\"fenotype\"]", row["fenotype"])
+                    fenotype = self.Model.generate_from_string(row["fenotype"])
+                    individual = IndividualClass(fenotype)
+                    #individual.evaluation = 
 
 
 

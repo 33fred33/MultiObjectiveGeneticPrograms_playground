@@ -280,6 +280,17 @@ class TreeFunctionClass:
             return sample[node.content]
         else:
             return node.content
+
+    def generate_from_string(self, string_representation):
+        """
+        Positional arguments:
+            string_representation is a string with the str returned from this 
+        Returns:
+            Generated tree's root node
+        """ 
+        print("operators:\n", [op.__name__ for op in self.operators])
+        #split(string_representation,"")
+        return root_node
     
 class Node:
     def __init__(self, content, *children, parent = None,):

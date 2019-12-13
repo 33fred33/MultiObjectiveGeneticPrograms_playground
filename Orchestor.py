@@ -13,6 +13,7 @@ import ObjectiveFunctions as of
 import Operators as ops
 import operator
 import time
+import math
 
 #Pedestrian dataset
 def load_from_csv(name, ints = False):
@@ -37,8 +38,8 @@ operators = [
     ,operator.sub
     ,operator.mul
     ,ops.safe_divide_numerator
-    #,ops.signed_if
-    #,math.sin
+    ,ops.signed_if
+    ,math.sin
     ]
 objective_functions = [
     of.single_goal_accuracy
@@ -53,20 +54,22 @@ objective_functions_arguments = [
 TF = tf.TreeFunctionClass(
             features = len(x_train[0]),
             operators = operators,
-            max_initial_depth = 3,
-            max_depth = 15,
+            max_initial_depth = 5,
+            max_depth = 20,
             initialisation_method = "ramped half half",
             mutation_method = "subtree")
 
-NewGP = gp.GeneticProgramClass(population_size = 100,
-            generations = 50,
+NewGP = gp.GeneticProgramClass(population_size = 200,
+            generations = 100,
             Model = TF,
             objective_functions = objective_functions,
             objective_functions_arguments = objective_functions_arguments, #[[f1_arg1, ..., f1_argn], [f2_arg1, ..., f2_argn], ..., [fn_arg1, ..., fn_argn]]
             sampling_method="tournament",
             mutation_ratio=0.4,
-            tournament_size=2,
-            experiment_name = "Pedestrian_6_6_0_pop100_mr40_ts2")
+            tournament_size=5,
+            experiment_name = "Pedestrian_6_6_0_pop100_mr40_ts2-good")
+
+
 
 #Execution
 start_time = time.time()

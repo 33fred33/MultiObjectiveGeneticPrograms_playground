@@ -238,19 +238,21 @@ class GeneticProgramClass:
             First row is headers
             Minimum column names: generation, fenotype
         """#wroing
+        print("In load")
         with open(file_name, mode="r") as read_file:
             reader = csv.DictReader(read_file)
-            max_gen =  max([row["generation"] for row in reader])
-            if desired_generation is None or desired_generation > max_gen:
-                desired_generation =  max_gen
-            #print(reader[0])
+            logs_dict = {}
             for row in reader:
-                print(row)
-                if row["generation"] == desired_generation:
-                    print("row[\"fenotype\"]", row["fenotype"])
-                    fenotype = self.Model.generate_from_string(row["fenotype"])
-                    individual = IndividualClass(fenotype)
-                    #individual.evaluation = 
+                logs_dict[(row["generation"], row["individual_index"])] = row["fenotype"]
+            
+        if desired_generation is None:
+            desired_generation = max([x[0] for x in logs_dict.keys()])
+        ind_indexes = [x[1] for x in logs_dict.keys()]
+
+        for ind_idx in ind_indexes:
+            print(logs_dict[(desired_generation, ind_idx)])
+            fenotype = self.Model.generate_from_string(logs_dict[(desired_generation, ind_idx)])
+            individual = IndividualClass(fenotype)
 
 
 

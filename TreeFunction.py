@@ -281,16 +281,38 @@ class TreeFunctionClass:
         else:
             return node.content
 
-    def generate_from_string(self, string_representation):
+    def generate_from_string(self, string_representation, parent = None): #deprecated
         """
         Positional arguments:
             string_representation is a string with the str returned from this 
         Returns:
             Generated tree's root node
         """ 
-        print("operators:\n", [op.__name__ for op in self.operators])
-        #split(string_representation,"")
-        return root_node
+        bracket = string_representation.split("(", 1)
+        between_brackets = bracket[1].rsplit(")", 1)[0]
+        print("between_brackets", between_brackets)
+        split_space = between_brackets.split(" ")
+        content = split_space[0].strip()
+        for op in self.operators:
+            if op.__name__ ==  content:
+                sig = signature(op)
+                arity = len(sig.parameters)
+                root_node = Node(op, parent = parent)
+                print("Match: op", op.__name__, "arity:", arity)
+                for idx in range(arity):
+                    child_idx = idx + 1
+                    if split_space[child_idx][0] == "(":
+                        print(between_brackets.split(" ", child_idx)[child_idx])
+                        input("yay")
+                        child_node = self.generate_from_string(between_brackets.split(" ", child_idx)[child_idx], root_node)
+                        root_node.children.append(child_node)
+                    elif split_space[child_idx][0] == "x":
+                        value = int(split_space[child_idx][1:]) 
+                        root_node.children.append(value)
+                    else:
+                        value = float(split_space[child_idx])
+                        root_node.children.append(value)
+                return root_node
     
 class Node:
     def __init__(self, content, *children, parent = None,):

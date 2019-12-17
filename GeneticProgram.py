@@ -20,7 +20,6 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 
 """
 
-#REORDENAR LOGS PARA MENOS FILAS
 #FEATURES SVM
 
 import math
@@ -224,6 +223,12 @@ class GeneticProgramClass:
         return self.darwin_champion
 
     def predict(self, x):
+        """
+        Positional arguments:
+            x is a dataset to to evaluate the fit with
+        Returns:
+            the predicion as an array
+        """
         prediction = self.Model.evaluate(self.darwin_champion, x)
         return prediction
 

@@ -127,6 +127,11 @@ parser.add_argument("-op",
                     default="add,sub,mul,safe_divide_numerator",
                     type=str,
                     help="tree function operators available in this format: add,sub,mul,safe_divide_numerator,signed_if,sin,cos")
+parser.add_argument("-et",
+                    "--ensemble_type",
+                    default="baseline",
+                    type=str,
+                    help="can be rpf or baseline")
 args=parser.parse_args()
 
 # data loading
@@ -197,13 +202,13 @@ GP = gp.GeneticProgramClass(
             sampling_method = args.sampling_method,
             mutation_ratio = args.mutation_ratio,
             tournament_size = args.tournament_size,
-            experiment_name = args.experiment_name)
+            experiment_name = args.experiment_name,
+            ensemble_type = args.ensemble_type)
 
 #Execution
 start_time = time.time()
-dc = GP.fit(x_train, y_train)
+GP.fit(x_train, y_train)
 run_time = time.time() - start_time
-print(dc)
 print(GP.population[0].evaluation)
 print(GP.population[0].objective_values)
 print("run_time", run_time)

@@ -20,7 +20,9 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 
 """
 
-#FEATURES SVM
+#TO DO:
+#GENERIC VOTATION
+#GENERATIONAL LOGS
 
 import math
 import random as rd
@@ -33,12 +35,13 @@ import datetime
 import os
 import errno
 import csv
+import pickle
 
 class IndividualClass:
     def __init__(self, fenotype, objective_values = None):
         self.fenotype = fenotype
         self.evaluation = []
-        self.objective_values = objective_values
+        self.objective_values = objective_values # should be between 0 and 1 (0 is the best)
         
     def __lt__(self, other): #less than
         """
@@ -77,7 +80,8 @@ class GeneticProgramClass:
             sampling_method="tournament",
             mutation_ratio=0.4,
             tournament_size=2,
-            experiment_name = None):
+            experiment_name = None,
+            ensemble_type = "baseline"):
         """
         Positional arguments:
             population_size
@@ -98,6 +102,7 @@ class GeneticProgramClass:
             mutation_ratio is the ratio of the next generation non-elite population to be filled with mutation-generated individuals
             tournament_size only used if sampling method is tournament. Best out from randomly selected individuals will be selected for sampling. Default is 2
             experiment_name is a string, used to create a new folder to store the outputs
+            ensemble_type can be rpf or baseline. Default is baseline, which considers the full pareto
         """  
         
         #Positional arguments variables assignment
@@ -122,6 +127,7 @@ class GeneticProgramClass:
             self.experiment_name = str(now.year) + "-" + str(now.month) + "-" + str(now.day) + "-" + str(now.hour) + "-" + str(now.minute)
         else:
             self.experiment_name = experiment_name
+        self.ensemble_type = ensemble_type
         
         #General variables initialisation
         self.logs_level = 0
@@ -152,19 +158,25 @@ class GeneticProgramClass:
         self.ran_generations = 0
         
         #Initial population initialisation
-        start_time = time.time()
         self.population = [IndividualClass(individual) for individual in self.Model.generate_population(self.population_size)]
         self._evaluate_population()
         self.population = sorted(self.population)
 
-        self.logs_checkpoint(time.time() - start_time)
+        self.logs_checkpoint()
 
         if self.logs_level > 1:
             for i,ind in enumerate(self.population):
                 print("\n ", str(i), "th individual's evaluation = ", ind.evaluation)
             input("wait!")
         
-        #amounts of each population type and procedence     
+        self.train(self.generations)
+            
+    
+    def train(self, generations):
+        """
+        Positional arguments:
+            generations is an int
+        """
         mutations = math.ceil(self.population_size * self.mutation_ratio)
         crossovers = self.population_size - mutations
         
@@ -173,12 +185,9 @@ class GeneticProgramClass:
             print("mutations per gen: ", mutations)
             print("crossovers per gen: ", crossovers)
             
-        for generation in range(1,self.generations):
-            self.ran_generations = generation
-            
+        for generation in range(generations):
+            self.ran_generations += 1
             start_time = time.time()
-            if self.logs_level >= 1:
-                print("Generation: ", generation)
                 
             #Parents selection
             if self.sampling_method == "tournament":    
@@ -204,33 +213,72 @@ class GeneticProgramClass:
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
 
-            self.logs_checkpoint(time.time() - start_time)
-            
+            self.logs_checkpoint()
+
             print("Generation ", generation, " time: ", str(time.time() - start_time))
             print("Darwin champion evaluations: ", self.population[0].evaluation)
             print("Darwin champion: ", self.population[0].fenotype)
-            if self.logs_level >= 1:
-                print("Darwin champion: ", self.population[0].fenotype)
-                #print("Best individual so far: ", self.population[0].fenotype)
-                if self.logs_level >= 2: 
-                    for i,ind in enumerate(self.population):
-                        print("\n ", str(i), "th individual's evaluation = ", ind.evaluation)
-                    input("wait!") 
-        
-        #final individual selection
-        self.darwin_champion = self.population[0].fenotype
-        
-        return self.darwin_champion
 
-    def predict(self, x):
+    def predict(self, x, rpf_objective_indexes=None):
         """
         Positional arguments:
             x is a dataset to to evaluate the fit with
         Returns:
             the predicion as an array
+        Assummes the best individual is the result of the genetic algorithm, and evaluates him
         """
-        prediction = self.Model.evaluate(self.darwin_champion, x)
+        if len(self.objective_functions == 1):
+            prediction = self.Model.evaluate(self.population[0], x) # assummes population is sorted
+        else:
+            if self.ensemble_type == "rpf":
+                ensemble = self._rpf_ensemble(rpf_objective_indexes)
+            else: #default is baseline
+                ensemble=self._baseline_ensemble()
+
+            ensemble_size = len(ensemble)
+            if ensemble_size == 0:
+                return None
+
+            voting_threshold = ensemble_size/2
+            predictions = np.array([self.Model.evaluate(individual.fenotype, x) for individual in ensemble])
+            prediction = [1 # most voted class value, minority class preferred
+                        if sum(predictions[:,pred_idx]) > voting_threshold 
+                        else 0 # less voted class value
+                        for pred_idx in range(len(predictions[0]))] # WRONG this needs to be changed if classes are not 1 or 0
+
         return prediction
+
+    def _rpf_ensemble(self, objective_indexes=None):
+        """
+        Keyword arguments:
+            objective_indexes are the indexes of the objectives to be considered as filter
+        Returns:
+            the ensemble of individuals as an array
+        """
+        if objective_indexes is None: 
+            objective_indexes = [i for i in range(len(self.objective_functions))]
+        ensemble = []
+        for individual in self.population:
+            if individual.evaluation[0] > 0:
+                useful_individual = True
+            else: useful_individual = False
+            for obj_idx, obj_value in enumerate(individual.objective_values):
+                if obj_idx in objective_indexes:
+                    if obj_value <= 0.5:
+                        useful_individual = False
+            if useful_individual:
+                ensemble.append(individual)
+        return ensemble
+
+    def _baseline_ensemble(self):
+        """
+            the ensemble of individuals from the pareto front as an array
+        """
+        ensemble = []
+        for individual in self.population:
+            if individual.evaluation[0] == 0:  # choose only pareto front individuals
+                ensemble.append(individual)
+        return ensemble
 
     def load_from_file(self, file_name, desired_generation = None):
         """
@@ -242,7 +290,7 @@ class GeneticProgramClass:
             Each row is an individual
             First row is headers
             Minimum column names: generation, fenotype
-        """#wroing
+        """
         print("In load")
         with open(file_name, mode="r") as read_file:
             reader = csv.DictReader(read_file)
@@ -259,18 +307,12 @@ class GeneticProgramClass:
             fenotype = self.Model.generate_from_string(logs_dict[(desired_generation, ind_idx)])
             individual = IndividualClass(fenotype)
 
-
-
-
-
     
     def _evaluate_population(self, x = None, y = None):
         if x is None:
             x = self.x_train
         if y is None:
             y = self.y_train
-
-
 
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
@@ -279,20 +321,11 @@ class GeneticProgramClass:
                     for obj_idx, objective_function 
                     in enumerate(self.objective_functions)]
 
-        """
-        objective_values = []
-        predictions = [self.Model.evaluate(individual.fenotype, x) for individual in self.population]
-        for obj_idx, objective_function in enumerate(self.objective_functions):
-            objective_values.append([objective_function(y, y_predicted, *self.objective_functions_arguments[obj_idx]) for y_predicted in predictions])
-        """
-
         if self.objectives == 1:
             for ind_idx, individual in enumerate(self.population):
-                #individual.evaluation = [objective_values[0][ind_idx]]
                 individual.evaluation = individual.objective_values[0]
         else:
             if self.multiobjective_fitness == "SPEA2":
-                #[print(idx, individual.objective_values) for idx, individual in enumerate(self.population)]
                 objective_values = [[individual.objective_values[obj_idx] for individual in self.population] for obj_idx in range(self.objectives)] #added
                 evaluations = self._spea2(objective_values)
 
@@ -310,24 +343,12 @@ class GeneticProgramClass:
                                   save = True,
                                   path = self.experiment_name)
         
-
             elif self.multiobjective_fitness == "NSGA2":
                 pass
 
             crowding_distances = self._crowding_distance(objective_values)
             for ind_idx, individual in enumerate(self.population):
                 individual.evaluation.append(crowding_distances[ind_idx])
-        """ 
-        print("y: ", y[5])
-        print("x: ", x[5])
-        print("func: ", self.population[20].fenotype)
-        print("y_pred: ", predictions[20][5])
-        print("obj1: ", objective_values[0][20])
-        print("obj2: ", objective_values[1][20])
-        print("spea2: ", evaluations[20])
-        print("cd: ", crowding_distances[20])
-        print("evals: ", self.population[20].evaluation)
-        """
 
     def _crowding_distance(self, objective_values):
         """
@@ -405,15 +426,8 @@ class GeneticProgramClass:
             selection.append(winner)               
         return selection
 
-    def logs_checkpoint(self, gen_time):
+    def logs_checkpoint(self):
         for ind_idx, individual in enumerate(self.population):
-            """
-            self.logs[(self.ran_generations,ind_idx,"fenotype")] = str(individual.fenotype)
-            self.logs[(self.ran_generations,ind_idx,"depth")] = individual.fenotype.my_depth()
-            self.logs[(self.ran_generations,ind_idx,"nodes")] = individual.fenotype.nodes_count()
-            self.logs[(self.ran_generations,ind_idx,"evaluation")] = individual.evaluation
-            self.logs[(self.ran_generations,ind_idx,"objective_values")] = individual.objective_values
-            """
             self.logs[(self.ran_generations,ind_idx)] = [
                 str(individual.fenotype) 
                 ,individual.fenotype.my_depth()
@@ -421,7 +435,6 @@ class GeneticProgramClass:
                 ,*individual.evaluation
                 ,*individual.objective_values]
 
-            #self.logs[(self.ran_generations, "time")] = gen_time
             logs_to_file(self.logs, self.experiment_name)
     
     def __str__(self):

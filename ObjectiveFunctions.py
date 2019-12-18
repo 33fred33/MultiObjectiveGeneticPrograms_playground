@@ -25,7 +25,6 @@ def single_goal_accuracy(y, y_predicted, goal_class):
         goal_class is the label to be compared
     Returns: y_predicted match ration with y, over the given goal class only, as a single float 
     """
-    
     corrects = sum([1 if y_predicted[i] == y[i] and y[i] == goal_class else 0 for i in range(len(y))])
     total = sum([1 if y[i] == goal_class else 0 for i in range(len(y))])
     if total == 0:

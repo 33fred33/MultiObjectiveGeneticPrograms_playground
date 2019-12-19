@@ -23,6 +23,8 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 #TO DO:
 #GENERIC VOTATION
 #GENERATIONAL LOGS
+#NSGA2
+#Bloat control by lenght, not depth only
 
 import math
 import random as rd
@@ -227,7 +229,7 @@ class GeneticProgramClass:
             the predicion as an array
         Assummes the best individual is the result of the genetic algorithm, and evaluates him
         """
-        if len(self.objective_functions == 1):
+        if len(self.objective_functions) == 1:
             prediction = self.Model.evaluate(self.population[0], x) # assummes population is sorted
         else:
             if self.ensemble_type == "rpf":

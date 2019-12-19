@@ -146,16 +146,10 @@ elif args.problem == "pedestrian_old":
     y_train = load_from_csv("datasets/y_train_pedestrian-features", True)
     y_test = load_from_csv("datasets/y_test_pedestrian-features", True)
 elif args.problem == "MNIST":
-    from sklearn.datasets import fetch_openml
-    X, y = fetch_openml('mnist_784', version=1, return_X_y=True)
-    X = np.array([image.reshape((28,28)) for image in X])
-    y = np.array(y)
-    X_features = [feature_extractor(x) for x in X]
-    max_feature = max([max(x) for x in X_features])
-    X_normalised_features = [x / max_feature for x in X_features]
-    y_temp = [1 if label == args.problem_variable else 0 for label in y]
-    x_train, x_test, y_train, y_test = train_test_split(X_normalised_features, y_temp, test_size = 0.8)
-    print(len(y_test))
+    x_train = load_from_csv("datasets/MNIST_x_train")
+    x_test = load_from_csv("datasets/MNIST_x_test")
+    y_train = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_train", True)
+    y_test = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_test", True)
 
 operators = []
 for operator_string in [operator_string for operator_string in args.operators.split(',')]:

@@ -263,7 +263,8 @@ class TreeFunctionClass:
             x: is the set of features
         Returns all outputs for each row in x
         """
-        y = [class_over_threshold if self.evaluate_single_sample(node, sample) >= threshold else class_below_threshold for sample in x]
+        y = [self.evaluate_single_sample(node, sample) for sample in x]
+        #y = [class_over_threshold if self.evaluate_single_sample(node, sample) >= threshold else class_below_threshold for sample in x]
         return y
 
     def evaluate_single_sample(self, node, sample):

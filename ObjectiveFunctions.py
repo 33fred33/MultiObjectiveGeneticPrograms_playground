@@ -13,6 +13,8 @@ def mse(y, y_predicted):
         y_predicted is a predicted list of labels
     Returns: Mean Squared Error as a float
     """
+    print(y[:10])
+    print(y_predicted[:10])
     n = len(y)
     MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
     return MSE
@@ -28,9 +30,10 @@ def single_goal_accuracy(y, y_predicted, goal_class):
     corrects = sum([1 if y_predicted[i] == y[i] and y[i] == goal_class else 0 for i in range(len(y))])
     total = sum([1 if y[i] == goal_class else 0 for i in range(len(y))])
     if total == 0:
-    	print("goal_class", goal_class)
-    	print("y_predicted", y_predicted)
-    	print("y", y)
+        print("total=0")
+    	#print("goal_class", goal_class)
+    	#print("y_predicted", y_predicted)
+    	#print("y", y)
     accuracy = corrects / total
     
     return accuracy
@@ -46,3 +49,8 @@ def accuracy(y, y_predicted):
     accuracy = corrects / len(y)
     return accuracy
 
+def get_tree_size(node):
+    return node.nodes_count()
+
+def get_tree_depth(node):
+    return node.my_depth()

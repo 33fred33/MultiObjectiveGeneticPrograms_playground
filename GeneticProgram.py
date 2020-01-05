@@ -25,6 +25,7 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 #GENERATIONAL LOGS
 #NSGA2
 #Bloat control by lenght, not depth only
+#no tiebreak if doesnt matter
 
 import math
 import random as rd
@@ -261,13 +262,13 @@ class GeneticProgramClass:
             objective_indexes = [i for i in range(len(self.objective_functions))]
         ensemble = []
         for individual in self.population:
-            if individual.evaluation[0] > 0:
-                useful_individual = True
-            else: useful_individual = False
+            if individual.evaluation[0] > 0: useful_individual = False
+            else: useful_individual = True
             for obj_idx, obj_value in enumerate(individual.objective_values):
                 if obj_idx in objective_indexes:
                     if obj_value <= 0.5:
                         useful_individual = False
+                        break
             if useful_individual:
                 ensemble.append(individual)
         return ensemble
@@ -318,14 +319,26 @@ class GeneticProgramClass:
 
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
-                prediction = self.Model.evaluate(individual.fenotype, x)
-                individual.objective_values = [objective_function(y, prediction, *self.objective_functions_arguments[obj_idx]) 
-                    for obj_idx, objective_function 
-                    in enumerate(self.objective_functions)]
+                individual.objective_values = []
+                for obj_idx, objective_function in enumerate(self.objective_functions):
+                    if objective_function == "single_goal_accuracy":
+                        objective_function = self.single_goal_accuracy
+                    elif objective_function == "mse":
+                        objective_function = self.mse
+                    elif objective_function == "accuracy":
+                        objective_function = self.mse #pend
+                    elif objective_function == "tree_depth":
+                        objective_function = self.mse #pend
+                    elif objective_function == "tree_size":
+                        objective_function = self.mse #pend
+                    else:
+                        print("wrong objective function name")
+                    individual.objective_values.append(objective_function(individual, *self.objective_functions_arguments[obj_idx]))
+                    
 
         if self.objectives == 1:
             for ind_idx, individual in enumerate(self.population):
-                individual.evaluation = individual.objective_values[0]
+                individual.evaluation = individual.objective_values
         else:
             if self.multiobjective_fitness == "SPEA2":
                 objective_values = [[individual.objective_values[obj_idx] for individual in self.population] for obj_idx in range(self.objectives)] #added
@@ -431,16 +444,42 @@ class GeneticProgramClass:
     def logs_checkpoint(self):
         for ind_idx, individual in enumerate(self.population):
             self.logs[(self.ran_generations,ind_idx)] = [
-                str(individual.fenotype) 
-                ,individual.fenotype.my_depth()
-                ,individual.fenotype.nodes_count()
-                ,*individual.evaluation
-                ,*individual.objective_values]
+										                str(individual.fenotype) 
+										                ,individual.fenotype.my_depth()
+										                ,individual.fenotype.nodes_count()
+										                ,*individual.evaluation
+										                ,*individual.objective_values]
 
             logs_to_file(self.logs, self.experiment_name)
     
     def __str__(self):
         return str(self.__dict__)
+
+    ##### Objective functions
+
+    def single_goal_accuracy(self, individual, goal_class):
+        y = self.y_train
+        values = self.Model.evaluate(individual.fenotype, self.x_train)
+        y_predicted = map_to_binary(values)
+        corrects = sum([1 if y_predicted[i] == y[i] and y[i] == goal_class else 0 for i in range(len(y))])
+        accuracy = corrects / y.count(goal_class)
+        return accuracy
+
+    def mse(self, individual):
+        y = self.y_train
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
+        n = len(y)
+        MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
+        return MSE
+
+def map_to_binary(values, threshold = 0, class_over_threshold = 1, class_below_threshold = 0):
+    """
+    Positional arguments:
+        values: list of numbers to be mapped.
+    Returns a list with 0 if value was negative, or 1 otherwise
+    """
+    y = [class_over_threshold if value >= threshold else class_below_threshold for value in values]
+    return y
 
 def verify_path(tpath):
     if tpath is None:

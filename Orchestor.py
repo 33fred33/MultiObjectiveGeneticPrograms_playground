@@ -24,6 +24,15 @@ from datasets.load_pedestrian import load_pedestrian_data
 from skimage.feature import hog
 import numpy as np
 import argparse
+import random as rd
+
+def single_variable_polynomial(x, coefficients):
+    value = 0
+    variable = x[0]
+    max_exponent = len(coefficients)
+    for i,coefficient in enumerate(coefficients):
+        value += coefficient * math.pow(variable, max_exponent - i)
+    return value
 
 def feature_extractor(image, box_size = 6, stride = 6, ignore_borders = 2):
     """
@@ -66,7 +75,7 @@ parser.add_argument("-p",
                     "--problem",
                     default="pedestrian",
                     type=str,
-                    help="problem to be solved")
+                    help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbollic_regression")
 parser.add_argument("-pv",
                     "--problem_variable",
                     default="0",
@@ -132,6 +141,16 @@ parser.add_argument("-et",
                     default="baseline",
                     type=str,
                     help="can be rpf or baseline")
+parser.add_argument("-of",
+                    "--objective_functions",
+                    default="single_goal_accuracy,single_goal_accuracy",
+                    type=str,
+                    help="can be single_goal_accuracy, mse, accuracy, tree_depth, tree_size")
+parser.add_argument("-ofa",
+                    "--objective_functions_arguments",
+                    default="",
+                    type=str,
+                    help="f1_a1,f1_a2,...,f1_an_f2_a1,f2_a2,...,f2_an_..._fm_a1,fm_a2,...,fm_an") #','to separate arguments, '_' to separate functions'
 args=parser.parse_args()
 
 # data loading
@@ -150,6 +169,25 @@ elif args.problem == "MNIST":
     x_test = load_from_csv("datasets/MNIST_x_test")
     y_train = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_train", True)
     y_test = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_test", True)
+elif args.problem == "symbollic_regression":
+    coefficients = [1,1,1]
+    if args.problem_variable == "1":
+        coefficients = [1,1,1]
+    elif args.problem_variable == "2":
+        coefficients = [1,1,1,1]
+    elif args.problem_variable == "3":
+        coefficients = [1,1,1,1,1]
+    elif args.problem_variable == "4":
+        coefficients = [1,1,1,1,1,1]
+    fitness_cases = 41
+    train_interval = [-10,10]
+    test_interval = [-10,10]
+    x_train = [[x] for x in np.linspace(train_interval[0],train_interval[1],fitness_cases)]
+    x_test = [[rd.uniform(test_interval[0], test_interval[1])] for _ in range(fitness_cases)]
+    y_train = [single_variable_polynomial(x, coefficients) for x in x_train]
+    y_test = [single_variable_polynomial(x, coefficients) for x in x_test]
+    #print(x_train,"\n",y_train)
+
 
 operators = []
 for operator_string in [operator_string for operator_string in args.operators.split(',')]:
@@ -177,22 +215,22 @@ TF = tf.TreeFunctionClass(
             max_depth = args.max_depth,
             initialisation_method = args.initialisation_method,
             mutation_method = args.mutation_method)
-
-objective_functions = [
-                    of.single_goal_accuracy
-                    ,of.single_goal_accuracy
-                    ]
-objective_functions_arguments = [
-                                [0]
-                                ,[1]
-                                ]  # objective_functions_arguments = [[f1_arg1, ..., f1_argn], [f2_arg1, ..., f2_argn], ..., [fn_arg1, ..., fn_argn]]
+    
+objective_functions = [objective_function_string for objective_function_string in args.objective_functions.split(',')]
+if len(args.objective_functions_arguments) > 0:
+    objective_functions_arguments = [[int(argument) for argument in function_arguments.split(",")] for function_arguments in args.objective_functions_arguments.split('_')]
+else: objective_functions_arguments = []
+while len(objective_functions_arguments) < len(objective_functions):
+    objective_functions_arguments.append([])
+print("objective_functions",objective_functions)
+print("objective_functions_arguments",objective_functions_arguments)
 
 GP = gp.GeneticProgramClass(
             population_size = args.population_size,
             generations = args.generations,
             Model = TF,
             objective_functions = objective_functions,
-            objective_functions_arguments = objective_functions_arguments, 
+            objective_functions_arguments = objective_functions_arguments,
             sampling_method = args.sampling_method,
             mutation_ratio = args.mutation_ratio,
             tournament_size = args.tournament_size,

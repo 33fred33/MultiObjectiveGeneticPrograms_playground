@@ -179,14 +179,13 @@ elif args.problem == "symbollic_regression":
         coefficients = [1,1,1,1,1]
     elif args.problem_variable == "4":
         coefficients = [1,1,1,1,1,1]
-    fitness_cases = 41
+    fitness_cases = 201
     train_interval = [-10,10]
     test_interval = [-10,10]
     x_train = [[x] for x in np.linspace(train_interval[0],train_interval[1],fitness_cases)]
     x_test = [[rd.uniform(test_interval[0], test_interval[1])] for _ in range(fitness_cases)]
     y_train = [single_variable_polynomial(x, coefficients) for x in x_train]
     y_test = [single_variable_polynomial(x, coefficients) for x in x_test]
-    #print(x_train,"\n",y_train)
 
 
 operators = []
@@ -222,8 +221,8 @@ if len(args.objective_functions_arguments) > 0:
 else: objective_functions_arguments = []
 while len(objective_functions_arguments) < len(objective_functions):
     objective_functions_arguments.append([])
-print("objective_functions",objective_functions)
-print("objective_functions_arguments",objective_functions_arguments)
+#print("objective_functions",objective_functions)
+#print("objective_functions_arguments",objective_functions_arguments)
 
 GP = gp.GeneticProgramClass(
             population_size = args.population_size,

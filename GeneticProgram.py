@@ -26,6 +26,7 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 #NSGA2
 #Bloat control by lenght, not depth only
 #no tiebreak if doesnt matter
+#crowding distance on standardized opbjective values?
 
 import math
 import random as rd
@@ -39,6 +40,7 @@ import os
 import errno
 import csv
 import pickle
+from scipy.interpolate import interp1d
 
 class IndividualClass:
     def __init__(self, fenotype, objective_values = None):
@@ -142,6 +144,7 @@ class GeneticProgramClass:
         self.x_test = []
         self.y_test = []
         self.logs = {}
+        self.genlogs = {}
         self.ran_generations = 0
         
     def fit(self
@@ -218,9 +221,22 @@ class GeneticProgramClass:
 
             self.logs_checkpoint()
 
-            print("Generation ", generation, " time: ", str(time.time() - start_time))
-            print("Darwin champion evaluations: ", self.population[0].evaluation)
-            print("Darwin champion: ", self.population[0].fenotype)
+            print("\nGeneration ", generation, " time: ", str(time.time() - start_time))
+            
+            #for ind in self.population:
+            if self.objectives == 1:
+                print(self.population[0].objective_values, self.population[0].evaluation)
+            else :
+                best_by_obj1 = sorted(self.population, key=lambda x: x.objective_values[1])[0]
+                best_by_obj0 = sorted(self.population, key=lambda x: x.objective_values[0])[0]
+                print(best_by_obj0.objective_values, best_by_obj0.evaluation)
+                print(best_by_obj1.objective_values, best_by_obj1.evaluation)
+
+        print("Darwin champions")
+        #best_by_obj1 = sorted(self.population, key=lambda x: x.objective_values[1])[0]
+        #best_by_obj0 = sorted(self.population, key=lambda x: x.objective_values[0])[0]
+        #print(best_by_obj0.fenotype)
+        #print(best_by_obj1.fenotype)
 
     def predict(self, x, rpf_objective_indexes=None):
         """
@@ -311,12 +327,10 @@ class GeneticProgramClass:
             individual = IndividualClass(fenotype)
 
     
-    def _evaluate_population(self, x = None, y = None):
-        if x is None:
-            x = self.x_train
-        if y is None:
-            y = self.y_train
-
+    def _evaluate_population(self):
+        """
+        Evaluates the entire population
+        """
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
                 individual.objective_values = []
@@ -325,12 +339,14 @@ class GeneticProgramClass:
                         objective_function = self.single_goal_accuracy
                     elif objective_function == "mse":
                         objective_function = self.mse
+                    elif objective_function == "errors_by_threshold":
+                        objective_function = self.errors_by_threshold
                     elif objective_function == "accuracy":
-                        objective_function = self.mse #pend
+                        objective_function = self.accuracy
                     elif objective_function == "tree_depth":
-                        objective_function = self.mse #pend
+                        objective_function = self.tree_depth
                     elif objective_function == "tree_size":
-                        objective_function = self.mse #pend
+                        objective_function = self.tree_size
                     else:
                         print("wrong objective function name")
                     individual.objective_values.append(objective_function(individual, *self.objective_functions_arguments[obj_idx]))
@@ -356,10 +372,11 @@ class GeneticProgramClass:
                                   markers = evaluations,
                                   marker_size = 200,
                                   save = True,
-                                  path = self.experiment_name)
+                                  path = self.experiment_name,
+                                  logaritmical = True)
         
-            elif self.multiobjective_fitness == "NSGA2":
-                pass
+            elif self.multiobjective_fitness == "NSGA2": # pending
+                pass 
 
             crowding_distances = self._crowding_distance(objective_values)
             for ind_idx, individual in enumerate(self.population):
@@ -369,7 +386,51 @@ class GeneticProgramClass:
         """
         Positional arguments:
             objective_values is a list of lists, with ordered values for each objective to be considered
-        Returns: a list of values with a crowding distance as a float
+        Returns: a list of values with a crowding distance as a float. 0 means the one with higher distance
+        """
+        crowding_distances = [[0 for _ in range(self.objectives)] for _ in range(len(self.population))]
+        #print(np.array(crowding_distances).shape)
+        objective_values_list = [[] for _ in range(self.objectives)]
+        for obj_idx in range(self.objectives):
+            #interpolate
+            temp_objective_list = [ind.objective_values[obj_idx] for ind in self.population]
+            max_ov = max(temp_objective_list)
+            min_ov = min(temp_objective_list)
+
+            if max_ov == min_ov:
+                print("In crowding distance: objective values are in the same range, skipping interpolation")
+            elif abs(max_ov) == np.inf or abs(min_ov) == np.inf:
+                print("In crowding distance: objective value is infinite, skipping interpolation")
+            else:
+                interpolate_function = interp1d([max_ov, min_ov],[0,1])
+                temp_objective_list = interpolate_function(temp_objective_list)
+
+            #objective_values_list[obj_idx] = sorted([(ind.objective_values[obj_idx], ind_idx) for ind_idx, ind in enumerate(self.population)], key = lambda x: x[0])
+            objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
+            print("obj_idx",obj_idx,
+                "min_ov",min_ov, "0", objective_values_list[obj_idx][0][0],
+                "max_ov",max_ov, "1", objective_values_list[obj_idx][-1][0],
+                "min_ind_idx", objective_values_list[obj_idx][0][1],
+                "max_ind_idx", objective_values_list[obj_idx][-1][1],)
+        #print(np.array(objective_values_list).shape)
+
+            
+
+        for obj_idx in range(self.objectives):
+            for sorted_idx, (objective_value, ind_idx) in enumerate(objective_values_list[obj_idx]):
+                if sorted_idx == 0 or sorted_idx == len(objective_values_list[obj_idx]) - 1:
+                    crowding_distances[ind_idx][obj_idx] = np.inf
+                else:
+                    abs1 = abs(objective_values_list[obj_idx][sorted_idx-1][0] - objective_value)
+                    abs2 = abs(objective_values_list[obj_idx][sorted_idx+1][0] - objective_value)
+                    crowding_distances[ind_idx][obj_idx] = (abs1 + abs2)/2
+
+        crowding_distance = [np.mean(crowding_distances[ind_idx]) for ind_idx in range(len(self.population))]
+        #print(crowding_distance)
+        max_cd = max([x for x in crowding_distance if x != np.inf])
+        inverted_crowding_distances = [max_cd - cd if cd != np.inf else -np.inf for cd in crowding_distance]
+
+
         """
         items = list(zip(*objective_values, list(range(len(objective_values[0])))))
         distances = defaultdict(list)
@@ -384,6 +445,7 @@ class GeneticProgramClass:
         crowding_distances = [d for i, d in indexes_mean_distances]
         max_cd = max(crowding_distances)
         inverted_crowding_distances = [max_cd - cd for cd in crowding_distances]
+        """
         return inverted_crowding_distances
 
     def _spea2(self, objective_values):
@@ -396,7 +458,8 @@ class GeneticProgramClass:
             for comparison_ind_idx in range(individuals):
                 dominated = True
                 for obj_idx in range(self.objectives):
-                    if objective_values[obj_idx][ind_idx] < objective_values[obj_idx][comparison_ind_idx]:
+                    #if objective_values[obj_idx][ind_idx] < objective_values[obj_idx][comparison_ind_idx]:
+                    if objective_values[obj_idx][ind_idx] > objective_values[obj_idx][comparison_ind_idx]:
                         dominated = False
                         break
                 if dominated:
@@ -410,7 +473,8 @@ class GeneticProgramClass:
             for comparison_ind_idx in range(individuals):
                 dominates_me = True
                 for obj_idx in range(self.objectives):
-                    if objective_values[obj_idx][ind_idx] >= objective_values[obj_idx][comparison_ind_idx]:
+                    if objective_values[obj_idx][ind_idx] <= objective_values[obj_idx][comparison_ind_idx]:
+                    #if objective_values[obj_idx][ind_idx] >= objective_values[obj_idx][comparison_ind_idx]:
                         dominates_me = False
                         break
                 if dominates_me:
@@ -442,6 +506,7 @@ class GeneticProgramClass:
         return selection
 
     def logs_checkpoint(self):
+        #individual wise logs
         for ind_idx, individual in enumerate(self.population):
             self.logs[(self.ran_generations,ind_idx)] = [
 										                str(individual.fenotype) 
@@ -449,9 +514,13 @@ class GeneticProgramClass:
 										                ,individual.fenotype.nodes_count()
 										                ,*individual.evaluation
 										                ,*individual.objective_values]
+        logs_to_file(self.logs, self.experiment_name)
 
-            logs_to_file(self.logs, self.experiment_name)
-    
+        self.genlogs[(self.ran_generations,"mean_tree_size")] = [np.mean([ind.fenotype.nodes_count() for ind in self.population])]
+        self.genlogs[(self.ran_generations,"mean_tree_depth")] = [np.mean([ind.fenotype.my_depth() for ind in self.population])]
+
+        logs_to_file(self.genlogs, self.experiment_name, logs_by_gen = True)
+            
     def __str__(self):
         return str(self.__dict__)
 
@@ -463,14 +532,35 @@ class GeneticProgramClass:
         y_predicted = map_to_binary(values)
         corrects = sum([1 if y_predicted[i] == y[i] and y[i] == goal_class else 0 for i in range(len(y))])
         accuracy = corrects / y.count(goal_class)
-        return accuracy
+        return 1-accuracy
 
     def mse(self, individual):
         y = self.y_train
         y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
         n = len(y)
         MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
+        #if MSE > 10000: return 10000
         return MSE
+
+    def tree_size(self, individual):
+        return individual.fenotype.nodes_count()
+
+    def tree_depth(self, individual):
+        return individual.fenotype.my_depth()
+
+    def accuracy(self, individual):
+        y = self.y_train
+        values = self.Model.evaluate(individual.fenotype, self.x_train)
+        y_predicted = map_to_binary(values)
+        corrects = sum([1 if y_predicted[i] == y[i] else 0 for i in range(len(y))])
+        accuracy = corrects / len(y)
+        return 1-accuracy
+
+    def errors_by_threshold(self, individual, threshold = 1):
+        y = self.y_train
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
+        errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])
+        return errors
 
 def map_to_binary(values, threshold = 0, class_over_threshold = 1, class_below_threshold = 0):
     """
@@ -496,20 +586,25 @@ def verify_path(tpath):
                     raise
         return tpath
 
-def logs_to_file(logs, path): #some hardcoded rules
+def logs_to_file(logs, path, logs_by_gen = False): #some hardcoded rules
     """
-    logs is a dictionary
+    logs is a dictionary with a key that can be split into two
     """
     path = verify_path(path)
+    if logs_by_gen:
+        path += "_bygen_"
     with open(path + "logs.csv", mode='w') as logs_file:
         logs_writer = csv.writer(logs_file, delimiter=',')
-        logs_writer.writerow(['generation', 'individual_index', 'fenotype', 'depth', 'nodes', 'evaluation1', 'evaluation2', 'objective_value1', 'objective_value2'])
+        if logs_by_gen:
+            logs_writer.writerow(['generation', 'indicator', 'value'])
+        else:
+            logs_writer.writerow(['generation', 'individual_index', 'fenotype', 'depth', 'nodes', 'evaluation1', 'evaluation2', 'objective_value1', 'objective_value2'])
         for key, value in logs.items():
             values = [str(v) for v in value]
             logs_writer.writerow([str(key[0]), str(key[1]), *values])
 
 
-def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None):  #some hardcoded rules
+def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None, logaritmical = False):  #some hardcoded rules
         path = verify_path(path)
         f = plt.figure()   
         f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
@@ -517,7 +612,14 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
         max_value = max(values)
         min_value = min(values)
         colors = [(1 - (value - min_value)) / (max_value - min_value + 0.001) for value in values]
+        log_string = ""
+        if logaritmical:
+            x = [math.log(xi) if math.log(xi)>0 else 0 for xi in x]
+            y = [math.log(yi) if math.log(yi)>0 else 0 for yi in y]
+            log_string += "(log)"
+
         if markers is None:
+
             plt.scatter(x, y, 
                         c = colors, 
                         cmap = colormap, 
@@ -534,8 +636,8 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
                             cmap = colormap, 
                             alpha = 0.9)
         plt.title(title)
-        plt.xlabel("Objective 1: Accuracy in majority class")
-        plt.ylabel("Objective 2: Accuracy in minority class")
+        plt.xlabel("Objective 1" + log_string)
+        plt.ylabel("Objective 2" + log_string)
         plt.grid()
         
         if save:

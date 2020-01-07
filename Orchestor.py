@@ -8,7 +8,7 @@ Created on Thu Dec 05 10:52:52 2019
 
 #to do:
 #time limit as argument
-
+import os
 import csv
 import TreeFunction as tf
 import GeneticProgram as gp
@@ -67,6 +67,21 @@ def load_from_csv(name, ints = False):
             else:
                 data.append([float(x) for x in row])
     return data
+
+def verify_path(tpath):
+    if tpath is None:
+        return ""
+    else:
+        if tpath[-1] != "/":
+            tpath = "outputs/" + tpath + "/"
+
+        if not os.path.exists(os.path.dirname(tpath)):
+            try:
+                os.makedirs(os.path.dirname(tpath))
+            except OSError as exc: # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
+        return tpath
 
 
 #Arguments handling:
@@ -229,29 +244,33 @@ while len(objective_functions_arguments) < len(objective_functions):
 #print("objective_functions",objective_functions)
 #print("objective_functions_arguments",objective_functions_arguments)
 
-GP = gp.GeneticProgramClass(
-            population_size = args.population_size,
-            generations = args.generations,
-            Model = TF,
-            objective_functions = objective_functions,
-            objective_functions_arguments = objective_functions_arguments,
-            sampling_method = args.sampling_method,
-            mutation_ratio = args.mutation_ratio,
-            tournament_size = args.tournament_size,
-            experiment_name = args.experiment_name,
-            ensemble_type = args.ensemble_type)
+path = verify_path(args.experiment_name)
 
-#Execution
-start_time = time.time()
-run_logs, run_genlogs = GP.fit(x_train, y_train)
-run_time = time.time() - start_time
-print(GP.population[0].evaluation)
-print(GP.population[0].objective_values)
-print("run_time", run_time)
+all_genlogs = []
+for run in range(args.runs):
+    ename = args.experiment_name + "/run" + str(run)
+    GP = gp.GeneticProgramClass(
+                population_size = args.population_size,
+                generations = args.generations,
+                Model = TF,
+                objective_functions = objective_functions,
+                objective_functions_arguments = objective_functions_arguments,
+                sampling_method = args.sampling_method,
+                mutation_ratio = args.mutation_ratio,
+                tournament_size = args.tournament_size,
+                experiment_name = ename,
+                ensemble_type = args.ensemble_type)
 
-path = gp.verify_path(args.experiment_name)
-with open(path + "gp.p", "wb") as f:
-    pickle.dump(GP, f) 
+    #Execution
+    start_time = time.time()
+    run_logs, run_genlogs = GP.fit(x_train, y_train)
+    run_time = time.time() - start_time
+    print("run ",run," time", run_time)
+    all_genlogs.append(run_genlogs)
+
+    ename = verify_path(ename)
+    with open(ename + "gp.p", "wb") as f:
+        pickle.dump(GP, f) 
 
 with open(path + "parameters.csv", mode = "w") as f:
     writer = csv.writer(f, delimiter = ",")
@@ -269,20 +288,19 @@ with open(path + "parameters.csv", mode = "w") as f:
     writer.writerow(["operators" ,str(args.operators)])
     writer.writerow(["objective_functions" ,str(objective_functions)])
     writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
-    writer.writerow(["run_time" ,str(run_time)])
 
-#once only
-#last_path = "outputs/for_edgar"
-#last_path = gp.verify_path(last_path)
 with open(path + "results.csv", mode='w') as last_file:
     last_writer = csv.writer(last_file, delimiter = ",")
-    last_writer.writerow(["results from experiment_name: ",str(args.experiment_name)])
-    last_writer.writerow(["run_time_in_secs", run_time])
-    last_writer.writerow(["last generation results:"])
-    for key, value in run_genlogs.items():
-        if str(key[0]) == str(args.generations):
-            values = [str(v) for v in value]
-            last_writer.writerow([str(key[1]), *values])
+    for run_idx, genlogs in enumerate(all_genlogs):
+        last_writer.writerow(["results from experiment_name: ",str(args.experiment_name)])
+        last_writer.writerow(["run: ",str(run_idx)])
+        last_writer.writerow(["run_time_in_secs", run_time])
+        last_writer.writerow(["last generation results:"])
+        for key, value in genlogs.items():
+            if str(key[0]) == str(args.generations):
+                values = [str(v) for v in value]
+                last_writer.writerow([str(key[1]), *values])
+    
 
 
 

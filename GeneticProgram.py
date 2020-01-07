@@ -146,6 +146,7 @@ class GeneticProgramClass:
         self.logs = {}
         self.genlogs = {}
         self.ran_generations = 0
+        self.last_gen_time = 0
         
     def fit(self
         , x_train
@@ -176,6 +177,7 @@ class GeneticProgramClass:
             input("wait!")
         
         self.train(self.generations)
+        return self.logs, self.genlogs
             
     
     def train(self, generations):
@@ -218,25 +220,14 @@ class GeneticProgramClass:
             
             #select next generation's population
             self.population = sorted(self.population)[:self.population_size]
-
+            self.last_gen_time = time.time() - start_time
             self.logs_checkpoint()
 
-            print("\nGeneration ", generation, " time: ", str(time.time() - start_time))
-            
-            #for ind in self.population:
-            if self.objectives == 1:
-                print(self.population[0].objective_values, self.population[0].evaluation)
-            else :
-                best_by_obj1 = sorted(self.population, key=lambda x: x.objective_values[1])[0]
-                best_by_obj0 = sorted(self.population, key=lambda x: x.objective_values[0])[0]
-                print(best_by_obj0.objective_values, best_by_obj0.evaluation)
-                print(best_by_obj1.objective_values, best_by_obj1.evaluation)
-
-        print("Darwin champions")
-        #best_by_obj1 = sorted(self.population, key=lambda x: x.objective_values[1])[0]
-        #best_by_obj0 = sorted(self.population, key=lambda x: x.objective_values[0])[0]
-        #print(best_by_obj0.fenotype)
-        #print(best_by_obj1.fenotype)
+            #print("\nGeneration ", generation, " time: ", str(time.time() - start_time))
+            print("\nGeneration ", generation)
+            for key, value in self.genlogs.items():
+                if key[0] == generation:
+                    print(key, value)
 
     def predict(self, x, rpf_objective_indexes=None):
         """
@@ -363,6 +354,11 @@ class GeneticProgramClass:
                 for ind_idx, individual in enumerate(self.population):
                     individual.evaluation = [evaluations[ind_idx]]
 
+                ### for plotting
+                logaritmical_plots = False
+                if "mse" in self.objective_functions:
+                    logaritmical_plots = True
+
                 title = "Gen " + str(self.ran_generations)
                 colored_plot(objective_values[0], 
                                   objective_values[1], 
@@ -373,7 +369,8 @@ class GeneticProgramClass:
                                   marker_size = 200,
                                   save = True,
                                   path = self.experiment_name,
-                                  logaritmical = True)
+                                  logaritmical = logaritmical_plots)
+                ### end plotting
         
             elif self.multiobjective_fitness == "NSGA2": # pending
                 pass 
@@ -407,11 +404,11 @@ class GeneticProgramClass:
 
             #objective_values_list[obj_idx] = sorted([(ind.objective_values[obj_idx], ind_idx) for ind_idx, ind in enumerate(self.population)], key = lambda x: x[0])
             objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
-            print("obj_idx",obj_idx,
-                "min_ov",min_ov, "0", objective_values_list[obj_idx][0][0],
-                "max_ov",max_ov, "1", objective_values_list[obj_idx][-1][0],
-                "min_ind_idx", objective_values_list[obj_idx][0][1],
-                "max_ind_idx", objective_values_list[obj_idx][-1][1],)
+            #print("obj_idx",obj_idx,
+            #    "min_ov",min_ov, "0", objective_values_list[obj_idx][0][0],
+            #    "max_ov",max_ov, "1", objective_values_list[obj_idx][-1][0],
+            #    "min_ind_idx", objective_values_list[obj_idx][0][1],
+            #    "max_ind_idx", objective_values_list[obj_idx][-1][1],)
         #print(np.array(objective_values_list).shape)
 
             
@@ -516,8 +513,22 @@ class GeneticProgramClass:
 										                ,*individual.objective_values]
         logs_to_file(self.logs, self.experiment_name)
 
+        self.genlogs[(self.ran_generations,"execution_time")] = [self.last_gen_time]
         self.genlogs[(self.ran_generations,"mean_tree_size")] = [np.mean([ind.fenotype.nodes_count() for ind in self.population])]
         self.genlogs[(self.ran_generations,"mean_tree_depth")] = [np.mean([ind.fenotype.my_depth() for ind in self.population])]
+        self.genlogs[(self.ran_generations,"std_tree_size")] = [np.std([ind.fenotype.nodes_count() for ind in self.population])]
+        self.genlogs[(self.ran_generations,"std_tree_depth")] = [np.std([ind.fenotype.my_depth() for ind in self.population])]
+        self.genlogs[(self.ran_generations,"non_dominated_solutions")] = [str(len([0 for ind in self.population if ind.evaluation[0] == 0]))]
+        for obj_idx in range(self.objectives):
+            self.genlogs[(self.ran_generations,"objective_" + str(obj_idx + 1) + "_name")] = [self.objective_functions[obj_idx]]
+            self.genlogs[(self.ran_generations,"mean_objective_value_" + str(obj_idx + 1))] = [np.mean([ind.objective_values[obj_idx] for ind in self.population])]
+            self.genlogs[(self.ran_generations,"std_objective_value_" + str(obj_idx + 1))] = [np.std([ind.objective_values[obj_idx] for ind in self.population])]
+            best_by_obj = sorted(self.population, key=lambda x: x.objective_values[obj_idx])[0]
+            #self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1))] = [best_by_obj.fenotype]
+            self.genlogs[(self.ran_generations,"best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min the best)")] = [best_by_obj.objective_values[obj_idx]]
+            self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_all_objective_values")] = [best_by_obj.objective_values]
+            self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_size")] = [best_by_obj.fenotype.nodes_count()]
+            self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_depth")] = [best_by_obj.fenotype.my_depth()]
 
         logs_to_file(self.genlogs, self.experiment_name, logs_by_gen = True)
             
@@ -556,7 +567,7 @@ class GeneticProgramClass:
         accuracy = corrects / len(y)
         return 1-accuracy
 
-    def errors_by_threshold(self, individual, threshold = 1):
+    def errors_by_threshold(self, individual, threshold = 0.01):
         y = self.y_train
         y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
         errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])
@@ -614,16 +625,60 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
         colors = [(1 - (value - min_value)) / (max_value - min_value + 0.001) for value in values]
         log_string = ""
         if logaritmical:
-            x = [math.log(xi) if math.log(xi)>0 else 0 for xi in x]
-            y = [math.log(yi) if math.log(yi)>0 else 0 for yi in y]
-            log_string += "(log)"
+            x = [math.log(xi) if math.log(xi)>0 or xi != 0 else 0 for xi in x]
+            y = [math.log(yi) if math.log(yi)>0 or yi != 0 else 0 for yi in y]
+            log_string += " (log)"
+
+        nondoms = np.array([[x[i],y[i]] for i in range(len(y)) if markers[i] == 0])
+        doms = np.array([[x[i],y[i]] for i in range(len(y)) if markers[i] != 0])
+        plt.scatter(nondoms[:,0], nondoms[:,1], 
+                        marker = "o",
+                        s = 40,
+                        edgecolors="blue",
+                        facecolors='none',
+                        #c = color, 
+                        #cmap = colormap, 
+                        alpha = 0.9)
+        plt.scatter(doms[:,0], doms[:,1], 
+                        marker = "x",
+                        #s = marker_size,
+                        #edgecolors=color,
+                        #facecolors='none',
+                        c = "black", 
+                        #cmap = colormap, 
+                        alpha = 0.6)
+
+        """
+        data = [[x[i], y[i]] for i in range(len(x))]
+        for i, d in enumerate(data):
+            if markers[i] == 0:
+                plt.scatter(d[0], d[1], 
+                        marker = "o",
+                        #s = marker_size,
+                        edgecolors="blue",
+                        facecolors='none',
+                        #c = color, 
+                        #cmap = colormap, 
+                        alpha = 0.9)
+            else:
+                
+                plt.scatter(d[0], d[1], 
+                        marker = "x",
+                        #s = marker_size,
+                        #edgecolors=color,
+                        #facecolors='none',
+                        c = "black", 
+                        #cmap = colormap, 
+                        alpha = 0.6)
 
         if markers is None:
-
+            
             plt.scatter(x, y, 
                         c = colors, 
                         cmap = colormap, 
                         alpha = 0.6)
+            
+            
         else:
             markers = [str(marker) for marker in markers]
             data = [[x[i], y[i], markers[i]] for i in range(len(x))]
@@ -632,10 +687,13 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
                             marker = r"$ {} $".format(d[2]),
                             s = marker_size,
                             edgecolors='none',
-                            #c = colors[i], 
+                            #c = "blue", 
                             cmap = colormap, 
                             alpha = 0.9)
+        """
         plt.title(title)
+        plt.xlim(left=0)
+        plt.ylim(bottom=0)
         plt.xlabel("Objective 1" + log_string)
         plt.ylabel("Objective 2" + log_string)
         plt.grid()

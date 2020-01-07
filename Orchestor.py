@@ -6,8 +6,8 @@ Created on Thu Dec 05 10:52:52 2019
 @author: 33fred33
 """
 
-#include mnist db
-#receive arguments
+#to do:
+#time limit as argument
 
 import csv
 import TreeFunction as tf
@@ -151,6 +151,11 @@ parser.add_argument("-ofa",
                     default="",
                     type=str,
                     help="f1_a1,f1_a2,...,f1_an_f2_a1,f2_a2,...,f2_an_..._fm_a1,fm_a2,...,fm_an") #','to separate arguments, '_' to separate functions'
+parser.add_argument("-r",
+                    "--runs",
+                    default=1,
+                    type=int,
+                    help="times to run same genetic program")
 args=parser.parse_args()
 
 # data loading
@@ -238,7 +243,7 @@ GP = gp.GeneticProgramClass(
 
 #Execution
 start_time = time.time()
-GP.fit(x_train, y_train)
+run_logs, run_genlogs = GP.fit(x_train, y_train)
 run_time = time.time() - start_time
 print(GP.population[0].evaluation)
 print(GP.population[0].objective_values)
@@ -266,6 +271,18 @@ with open(path + "parameters.csv", mode = "w") as f:
     writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
     writer.writerow(["run_time" ,str(run_time)])
 
+#once only
+#last_path = "outputs/for_edgar"
+#last_path = gp.verify_path(last_path)
+with open(path + "results.csv", mode='w') as last_file:
+    last_writer = csv.writer(last_file, delimiter = ",")
+    last_writer.writerow(["results from experiment_name: ",str(args.experiment_name)])
+    last_writer.writerow(["run_time_in_secs", run_time])
+    last_writer.writerow(["last generation results:"])
+    for key, value in run_genlogs.items():
+        if str(key[0]) == str(args.generations):
+            values = [str(v) for v in value]
+            last_writer.writerow([str(key[1]), *values])
 
 
 

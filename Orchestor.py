@@ -8,6 +8,10 @@ Created on Thu Dec 05 10:52:52 2019
 
 #to do:
 #time limit as argument
+#min initial depth as argument
+#max tree size as argument
+#minimize or maximize for each objective?
+
 import os
 import csv
 import TreeFunction as tf
@@ -25,6 +29,7 @@ from skimage.feature import hog
 import numpy as np
 import argparse
 import random as rd
+#import statistics as st
 
 def single_variable_polynomial(x, coefficients):
     value = 0
@@ -247,6 +252,8 @@ while len(objective_functions_arguments) < len(objective_functions):
 path = verify_path(args.experiment_name)
 
 all_genlogs = []
+run_times = []
+run_time = 0
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
     GP = gp.GeneticProgramClass(
@@ -264,43 +271,86 @@ for run in range(args.runs):
     #Execution
     start_time = time.time()
     run_logs, run_genlogs = GP.fit(x_train, y_train)
-    run_time = time.time() - start_time
+    run_time += time.time() - start_time
+    run_times.append(time.time() - start_time)
     print("run ",run," time", run_time)
     all_genlogs.append(run_genlogs)
 
+    #Data dump
     ename = verify_path(ename)
     with open(ename + "gp.p", "wb") as f:
         pickle.dump(GP, f) 
 
-with open(path + "parameters.csv", mode = "w") as f:
+
+#Final logs
+final_lists = {key[1]:[] for key, _ in all_genlogs[0].items()}
+
+for genlogs in all_genlogs:
+    for run_idx, (key, value) in enumerate(genlogs.items()):
+        temp_list = []
+        if str(key[0]) == str(args.generations):
+            final_lists[key[1]].append(value)
+#print(final_lists)
+
+
+with open(path + "results_file.csv", mode = "w") as f:
     writer = csv.writer(f, delimiter = ",")
     writer.writerow(["experiment_name",str(args.experiment_name)])
-    writer.writerow(["features",str(features)])
+    writer.writerow(["execution_command"," ".join(sys.argv[1:])])
+    writer.writerow(["full_execution_time",str(run_time)])
+    writer.writerow(["problem",str(args.problem)])
+    writer.writerow(["problem_variable",str(args.problem_variable)])
+    writer.writerow(["runs",str(args.runs)])
     writer.writerow(["model","Tree function"])
-    writer.writerow(["max_initial_depth",str(args.max_initial_depth)])
-    writer.writerow(["max_depth" ,str(args.max_depth)])
+    writer.writerow(["tree_features",str(features)])
+    writer.writerow(["tree_operators" ,str(args.operators)])
+    writer.writerow(["min_initial_tree_depth","2"])
+    writer.writerow(["max_initial_tree_depth",str(args.max_initial_depth)])
+    writer.writerow(["max_tree_depth" ,str(args.max_depth)])
+    writer.writerow(["max_tree_size" ,"not set"])
     writer.writerow(["initialisation_method" ,str(args.initialisation_method)])
     writer.writerow(["population_size" ,str(args.population_size)])
     writer.writerow(["generations" ,str(args.generations)])
     writer.writerow(["sampling_method" ,str(args.sampling_method)])
     writer.writerow(["tournament_size" ,str(args.tournament_size)])
     writer.writerow(["mutation_ratio" ,str(args.mutation_ratio)])
-    writer.writerow(["operators" ,str(args.operators)])
     writer.writerow(["objective_functions" ,str(objective_functions)])
+    writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions_arguments))]])
     writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
+    writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
+    for key, value in final_lists.items():
+        #print(key, value)
+        if not isinstance(value[0][0], list) and not isinstance(value[0][0], str):
+            values = [str(v) for v in value]
+            writer.writerow(["avg_last_gen_" + str(key), str(np.mean([float(x[0]) for x in value]))])
+            writer.writerow(["std_last_gen_" + str(key), str(np.std([float(x[0]) for x in value]))])
+    """
+    writer.writerow(["avg_last_gen_tree_sizes" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_last_gen_tree_depthss" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_stddev_last_gen_tree_sizes" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_stddev_last_gen_tree_depthss" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_last_gen_execution_time" ,str(objective_functions_arguments)])
 
-with open(path + "results.csv", mode='w') as last_file:
+
+    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_obj_value" ,str(objective_functions_arguments)])
+    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_obj_value" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_tree_sizes" ,str(objective_functions_arguments)])
+    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_tree_depthss" ,str(objective_functions_arguments)])
+    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_tree_sizes" ,str(objective_functions_arguments)])
+    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_tree_depthss" ,str(objective_functions_arguments)])
+    """
+with open(path + "results_by_run.csv", mode='w') as last_file:
     last_writer = csv.writer(last_file, delimiter = ",")
     for run_idx, genlogs in enumerate(all_genlogs):
-        last_writer.writerow(["results from experiment_name: ",str(args.experiment_name)])
-        last_writer.writerow(["run: ",str(run_idx)])
-        last_writer.writerow(["run_time_in_secs", run_time])
-        last_writer.writerow(["last generation results:"])
+        last_writer.writerow(["results_from experiment_name: ",str(args.experiment_name)])
+        last_writer.writerow(["run",str(run_idx)])
+        last_writer.writerow(["last_generation_results:"])
         for key, value in genlogs.items():
             if str(key[0]) == str(args.generations):
                 values = [str(v) for v in value]
                 last_writer.writerow([str(key[1]), *values])
-    
+
+
 
 
 

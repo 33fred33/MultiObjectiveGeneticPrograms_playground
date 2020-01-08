@@ -525,7 +525,7 @@ class GeneticProgramClass:
             self.genlogs[(self.ran_generations,"std_objective_value_" + str(obj_idx + 1))] = [np.std([ind.objective_values[obj_idx] for ind in self.population])]
             best_by_obj = sorted(self.population, key=lambda x: x.objective_values[obj_idx])[0]
             #self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1))] = [best_by_obj.fenotype]
-            self.genlogs[(self.ran_generations,"best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min the best)")] = [best_by_obj.objective_values[obj_idx]]
+            self.genlogs[(self.ran_generations,"best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)")] = [best_by_obj.objective_values[obj_idx]]
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_all_objective_values")] = [best_by_obj.objective_values]
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_size")] = [best_by_obj.fenotype.nodes_count()]
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_depth")] = [best_by_obj.fenotype.my_depth()]

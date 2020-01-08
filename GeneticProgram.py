@@ -571,7 +571,8 @@ class GeneticProgramClass:
         y = self.y_train
         y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
         errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])
-        return errors
+        error_rate = errors/len(y)
+        return error_rate
 
 def map_to_binary(values, threshold = 0, class_over_threshold = 1, class_below_threshold = 0):
     """

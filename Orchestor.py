@@ -273,6 +273,12 @@ for run in range(args.runs):
     run_logs, run_genlogs = GP.fit(x_train, y_train)
     run_time += time.time() - start_time
     run_times.append(time.time() - start_time)
+    
+
+    if args.problem == "symbollic_regression":
+        for obj_idx in range(len(objective_functions)):
+            run_genlogs[(args.generations, "best_ind_for_obj_"+str(obj_idx)+ "_errors_by_threshold_in_symb_reg")] = [GP.errors_by_threshold(sorted(GP.population, key=lambda x: x.objective_values[obj_idx])[0])]
+
     print("run ",run," time", run_time)
     all_genlogs.append(run_genlogs)
 
@@ -290,7 +296,7 @@ for genlogs in all_genlogs:
         temp_list = []
         if str(key[0]) == str(args.generations):
             final_lists[key[1]].append(value)
-#print(final_lists)
+#for final_list in final_lists: print(final_list)
 
 
 with open(path + "results_file.csv", mode = "w") as f:
@@ -315,7 +321,7 @@ with open(path + "results_file.csv", mode = "w") as f:
     writer.writerow(["tournament_size" ,str(args.tournament_size)])
     writer.writerow(["mutation_ratio" ,str(args.mutation_ratio)])
     writer.writerow(["objective_functions" ,str(objective_functions)])
-    writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions_arguments))]])
+    writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions))]])
     writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
     writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
     for key, value in final_lists.items():

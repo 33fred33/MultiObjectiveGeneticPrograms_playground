@@ -40,7 +40,7 @@ import os
 import errno
 import csv
 import pickle
-from scipy.interpolate import interp1d
+#from scipy.interpolate import interp1d
 
 class IndividualClass:
     def __init__(self, fenotype, objective_values = None):
@@ -330,6 +330,8 @@ class GeneticProgramClass:
                         objective_function = self.single_goal_accuracy
                     elif objective_function == "mse":
                         objective_function = self.mse
+                    elif objective_function == "rmse":
+                        objective_function = self.rmse
                     elif objective_function == "errors_by_threshold":
                         objective_function = self.errors_by_threshold
                     elif objective_function == "accuracy":
@@ -391,6 +393,7 @@ class GeneticProgramClass:
         for obj_idx in range(self.objectives):
             #interpolate
             temp_objective_list = [ind.objective_values[obj_idx] for ind in self.population]
+            """ This to interpolate and give same importance?
             max_ov = max(temp_objective_list)
             min_ov = min(temp_objective_list)
 
@@ -401,6 +404,7 @@ class GeneticProgramClass:
             else:
                 interpolate_function = interp1d([max_ov, min_ov],[0,1])
                 temp_objective_list = interpolate_function(temp_objective_list)
+            """
 
             #objective_values_list[obj_idx] = sorted([(ind.objective_values[obj_idx], ind_idx) for ind_idx, ind in enumerate(self.population)], key = lambda x: x[0])
             objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
@@ -552,6 +556,9 @@ class GeneticProgramClass:
         MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
         #if MSE > 10000: return 10000
         return MSE
+
+    def rmse(self, individual):
+        return math.sqrt(self.mse(individual))
 
     def tree_size(self, individual):
         return individual.fenotype.nodes_count()

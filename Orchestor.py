@@ -165,7 +165,7 @@ parser.add_argument("-of",
                     "--objective_functions",
                     default="single_goal_accuracy,single_goal_accuracy",
                     type=str,
-                    help="can be single_goal_accuracy, mse, accuracy, tree_depth, tree_size")
+                    help="can be single_goal_accuracy, mse, accuracy, tree_depth, tree_size, rmse, errors_by_threshold")
 parser.add_argument("-ofa",
                     "--objective_functions_arguments",
                     default="",
@@ -324,27 +324,17 @@ with open(path + "results_file.csv", mode = "w") as f:
     writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions))]])
     writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
     writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
+    for obj_idx in range(len(objective_functions)):
+        writer.writerow(["best_overall_individual_obj_"+str(obj_idx + 1)+ "_value" ,str(min(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"]))]) #min max dependent
+        writer.writerow(["best_obj_"+str(obj_idx + 1)+ "_values_by_run" ,str(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"])]) #min max dependent
+        
+
     for key, value in final_lists.items():
-        #print(key, value)
         if not isinstance(value[0][0], list) and not isinstance(value[0][0], str):
             values = [str(v) for v in value]
             writer.writerow(["avg_last_gen_" + str(key), str(np.mean([float(x[0]) for x in value]))])
             writer.writerow(["std_last_gen_" + str(key), str(np.std([float(x[0]) for x in value]))])
-    """
-    writer.writerow(["avg_last_gen_tree_sizes" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_last_gen_tree_depthss" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_stddev_last_gen_tree_sizes" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_stddev_last_gen_tree_depthss" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_last_gen_execution_time" ,str(objective_functions_arguments)])
 
-
-    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_obj_value" ,str(objective_functions_arguments)])
-    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_obj_value" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_tree_sizes" ,str(objective_functions_arguments)])
-    writer.writerow(["avg_best_ind_for_obj_"+str(obj_idx) +"_tree_depthss" ,str(objective_functions_arguments)])
-    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_tree_sizes" ,str(objective_functions_arguments)])
-    writer.writerow(["stddev_best_ind_for_obj_"+str(obj_idx) +"_tree_depthss" ,str(objective_functions_arguments)])
-    """
 with open(path + "results_by_run.csv", mode='w') as last_file:
     last_writer = csv.writer(last_file, delimiter = ",")
     for run_idx, genlogs in enumerate(all_genlogs):

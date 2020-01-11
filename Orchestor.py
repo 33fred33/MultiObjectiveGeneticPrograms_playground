@@ -11,13 +11,14 @@ Created on Thu Dec 05 10:52:52 2019
 #min initial depth as argument
 #max tree size as argument
 #minimize or maximize for each objective?
+#tree size 0 to 1 setting max or calculating it
 
 import os
 import csv
 import TreeFunction as tf
 import GeneticProgram as gp
-import ObjectiveFunctions as of
 import Operators as ops
+import ProblemDatabase as problems
 import operator
 import time
 import math
@@ -29,57 +30,19 @@ from skimage.feature import hog
 import numpy as np
 import argparse
 import random as rd
-#import statistics as st
-
-def single_variable_polynomial(x, coefficients):
-    value = 0
-    variable = x[0]
-    max_exponent = len(coefficients)
-    for i,coefficient in enumerate(coefficients):
-        value += coefficient * math.pow(variable, max_exponent - i)
-    return value
-
-def feature_extractor(image, box_size = 6, stride = 6, ignore_borders = 2):
-    """
-    Receives a numpy matrix as image, returns mean and standard deviation for every squared box in a list
-    """
-    image = np.array(image)
-    features = []
-    if ignore_borders > 0:
-        image = image[ ignore_borders : -ignore_borders , ignore_borders : -ignore_borders]
-    horizontal_jumps = int((image.shape[0] - box_size) / stride)
-    vertical_jumps = int((image.shape[1] - box_size) / stride)
-    for i in range(vertical_jumps):
-        for j in range(horizontal_jumps):
-            vertical_start = j * stride
-            horizontal_start = i * stride
-            box = image[ vertical_start : vertical_start + box_size , horizontal_start : horizontal_start + box_size]
-            features.append(np.mean(box))
-            features.append(np.std(box))
-    return np.array(features)
-
-def load_from_csv(name, ints = False):
-    """
-    Positional arguments:
-
-    """
-    with open(name + ".csv") as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
-        data = []
-        for row in csv_reader:
-            if ints:
-                data.append(*[int(x) for x in row])
-            else:
-                data.append([float(x) for x in row])
-    return data
 
 def verify_path(tpath):
+    """
+    Positional arguments:
+        tpath is a relative file path as a string
+    verifies tpath format as "outputs/tpath/"
+    verifies target folder exists
+    """
     if tpath is None:
         return ""
     else:
         if tpath[-1] != "/":
             tpath = "outputs/" + tpath + "/"
-
         if not os.path.exists(os.path.dirname(tpath)):
             try:
                 os.makedirs(os.path.dirname(tpath))
@@ -98,9 +61,9 @@ parser.add_argument("-p",
                     help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbollic_regression")
 parser.add_argument("-pv",
                     "--problem_variable",
-                    default="0",
+                    default=None, #it was "0"
                     type=str,
-                    help="problem variable if needed")
+                    help="problem variable if needed (in symbollic_regression: 1,2,3 or 4)")
 parser.add_argument("-ps",
                     "--population_size",
                     default=100,
@@ -178,40 +141,6 @@ parser.add_argument("-r",
                     help="times to run same genetic program")
 args=parser.parse_args()
 
-# data loading
-if args.problem == "pedestrian":
-    x_train = load_from_csv("datasets/pedestrian_x_train")
-    x_test = load_from_csv("datasets/pedestrian_x_test")
-    y_train = load_from_csv("datasets/pedestrian_y_train", True)
-    y_test = load_from_csv("datasets/pedestrian_y_test", True)
-elif args.problem == "pedestrian_old":
-    x_train = load_from_csv("datasets/x_train_0-6-6-pedestrian-features")
-    x_test = load_from_csv("datasets/x_test_0-6-6-pedestrian-features")
-    y_train = load_from_csv("datasets/y_train_pedestrian-features", True)
-    y_test = load_from_csv("datasets/y_test_pedestrian-features", True)
-elif args.problem == "MNIST":
-    x_train = load_from_csv("datasets/MNIST_x_train")
-    x_test = load_from_csv("datasets/MNIST_x_test")
-    y_train = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_train", True)
-    y_test = load_from_csv("datasets/MNIST" + args.problem_variable + "_y_test", True)
-elif args.problem == "symbollic_regression":
-    coefficients = [1,1,1]
-    if args.problem_variable == "1":
-        coefficients = [1,1,1]
-    elif args.problem_variable == "2":
-        coefficients = [1,1,1,1]
-    elif args.problem_variable == "3":
-        coefficients = [1,1,1,1,1]
-    elif args.problem_variable == "4":
-        coefficients = [1,1,1,1,1,1]
-    fitness_cases = 201
-    train_interval = [-10,10]
-    test_interval = [-10,10]
-    x_train = [[x] for x in np.linspace(train_interval[0],train_interval[1],fitness_cases)]
-    x_test = [[rd.uniform(test_interval[0], test_interval[1])] for _ in range(fitness_cases)]
-    y_train = [single_variable_polynomial(x, coefficients) for x in x_train]
-    y_test = [single_variable_polynomial(x, coefficients) for x in x_test]
-
 
 operators = []
 for operator_string in [operator_string for operator_string in args.operators.split(',')]:
@@ -230,56 +159,66 @@ for operator_string in [operator_string for operator_string in args.operators.sp
     elif operator_string == "cos":
         operators.append(math.cos)
 
-#objects creation
-features = len(x_train[0])
-TF = tf.TreeFunctionClass(
-            features = features,
-            operators = operators,
-            max_initial_depth = args.max_initial_depth,
-            max_depth = args.max_depth,
-            initialisation_method = args.initialisation_method,
-            mutation_method = args.mutation_method)
-    
 objective_functions = [objective_function_string for objective_function_string in args.objective_functions.split(',')]
 if len(args.objective_functions_arguments) > 0:
     objective_functions_arguments = [[int(argument) for argument in function_arguments.split(",")] for function_arguments in args.objective_functions_arguments.split('_')]
 else: objective_functions_arguments = []
 while len(objective_functions_arguments) < len(objective_functions):
     objective_functions_arguments.append([])
-#print("objective_functions",objective_functions)
-#print("objective_functions_arguments",objective_functions_arguments)
 
 path = verify_path(args.experiment_name)
 
+
+Problem = problems.Problem(
+                            name =args.problem, 
+                            variant = args.problem_variable)
+
+x_train = Problem.x_train
+x_test = Problem.x_test
+y_train = Problem.y_train
+y_test = Problem.y_test
+
+
+features = len(x_train[0])
+TF = tf.TreeFunctionClass(
+                            features = features,
+                            operators = operators,
+                            max_initial_depth = args.max_initial_depth,
+                            max_depth = args.max_depth,
+                            initialisation_method = args.initialisation_method,
+                            mutation_method = args.mutation_method)
+
+#Runs
 all_genlogs = []
 run_times = []
 run_time = 0
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
     GP = gp.GeneticProgramClass(
-                population_size = args.population_size,
-                generations = args.generations,
-                Model = TF,
-                objective_functions = objective_functions,
-                objective_functions_arguments = objective_functions_arguments,
-                sampling_method = args.sampling_method,
-                mutation_ratio = args.mutation_ratio,
-                tournament_size = args.tournament_size,
-                experiment_name = ename,
-                ensemble_type = args.ensemble_type)
+                                population_size = args.population_size,
+                                generations = args.generations,
+                                Model = TF,
+                                objective_functions = objective_functions,
+                                objective_functions_arguments = objective_functions_arguments,
+                                sampling_method = args.sampling_method,
+                                mutation_ratio = args.mutation_ratio,
+                                tournament_size = args.tournament_size,
+                                experiment_name = ename,
+                                ensemble_type = args.ensemble_type)
 
-    #Execution
+    #Single execution
     start_time = time.time()
-    run_logs, run_genlogs = GP.fit(x_train, y_train)
+    GP.fit(x_train, y_train)
+    run_logs, run_genlogs = GP.get_logs()
     run_time += time.time() - start_time
     run_times.append(time.time() - start_time)
     
-
+    #Run logs
     if args.problem == "symbollic_regression":
         for obj_idx in range(len(objective_functions)):
             run_genlogs[(args.generations, "best_ind_for_obj_"+str(obj_idx)+ "_errors_by_threshold_in_symb_reg")] = [GP.errors_by_threshold(sorted(GP.population, key=lambda x: x.objective_values[obj_idx])[0])]
 
-    print("run ",run," time", run_time)
+    print("\nRun ",run," time", run_time)
     all_genlogs.append(run_genlogs)
 
     #Data dump
@@ -287,17 +226,13 @@ for run in range(args.runs):
     with open(ename + "gp.p", "wb") as f:
         pickle.dump(GP, f) 
 
-
 #Final logs
 final_lists = {key[1]:[] for key, _ in all_genlogs[0].items()}
-
 for genlogs in all_genlogs:
     for run_idx, (key, value) in enumerate(genlogs.items()):
         temp_list = []
         if str(key[0]) == str(args.generations):
             final_lists[key[1]].append(value)
-#for final_list in final_lists: print(final_list)
-
 
 with open(path + "results_file.csv", mode = "w") as f:
     writer = csv.writer(f, delimiter = ",")
@@ -326,9 +261,7 @@ with open(path + "results_file.csv", mode = "w") as f:
     writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
     for obj_idx in range(len(objective_functions)):
         writer.writerow(["best_overall_individual_obj_"+str(obj_idx + 1)+ "_value" ,str(min(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"]))]) #min max dependent
-        writer.writerow(["best_obj_"+str(obj_idx + 1)+ "_values_by_run" ,str(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"])]) #min max dependent
-        
-
+        writer.writerow(["best_obj_"+str(obj_idx + 1)+ "_values_by_run" ,str(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"])]) #min max dependent      
     for key, value in final_lists.items():
         if not isinstance(value[0][0], list) and not isinstance(value[0][0], str):
             values = [str(v) for v in value]

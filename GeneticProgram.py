@@ -116,7 +116,10 @@ class GeneticProgramClass:
         self.Model = Model
         if not isinstance(objective_functions, list):
             objective_functions = [objective_functions]
-        self.objective_functions = objective_functions
+        self.objective_functions_names = objective_functions
+        self.objective_functions = []
+        for objective_function_name in objective_functions:
+            self.objective_functions.append(self._objective_function_parser(objective_function_name))
 
         #Keyword arguments variables assignment
         if objective_functions_arguments is None:
@@ -139,29 +142,22 @@ class GeneticProgramClass:
         self.objectives = len(self.objective_functions)
         self.darwin_champion = None
         self.population = []
-        self.x_train = []
-        self.y_train = []
-        self.x_test = []
-        self.y_test = []
+        self.x = []
+        self.y = []
         self.logs = {}
         self.genlogs = {}
         self.ran_generations = 0
         self.last_gen_time = 0
         
-    def fit(self
-        , x_train
-        , y_train
-        ):
+    def fit(self, x, y):
         """
         Positional arguments:
-            x_train
-            y_train
-        Keyword arguments:
-            fitness_method can be MSE, SPEA2, NSGA2
+            x is data as a list of lists
+            y is a list of labels
         """  
         #variables assignment
-        self.x_train = x_train
-        self.y_train = y_train
+        self.x = x
+        self.y = y
         self.ran_generations = 0
         
         #Initial population initialisation
@@ -177,8 +173,15 @@ class GeneticProgramClass:
             input("wait!")
         
         self.train(self.generations)
+        #return self.logs, self.genlogs
+    
+    def get_logs(self):
+        """
+        Returns logs, genlogs
+        logs contains data by individual from all generations
+        genlogs contains data by generation from all generations
+        """
         return self.logs, self.genlogs
-            
     
     def train(self, generations):
         """
@@ -187,11 +190,6 @@ class GeneticProgramClass:
         """
         mutations = math.ceil(self.population_size * self.mutation_ratio)
         crossovers = self.population_size - mutations
-        
-        if self.logs_level >= 1:
-            print("population_size: ", self.population_size)
-            print("mutations per gen: ", mutations)
-            print("crossovers per gen: ", crossovers)
             
         for generation in range(generations):
             self.ran_generations += 1
@@ -229,93 +227,82 @@ class GeneticProgramClass:
                 if key[0] == generation:
                     print(key, value)
 
-    def predict(self, x, rpf_objective_indexes=None):
-        """
-        Positional arguments:
-            x is a dataset to to evaluate the fit with
-        Returns:
-            the predicion as an array
-        Assummes the best individual is the result of the genetic algorithm, and evaluates him
-        """
-        if len(self.objective_functions) == 1:
-            prediction = self.Model.evaluate(self.population[0], x) # assummes population is sorted
+    def get_best_individual(self, objective_index=None):
+        if objective_index is None:
+            best_individual = self.population[0]
         else:
-            if self.ensemble_type == "rpf":
-                ensemble = self._rpf_ensemble(rpf_objective_indexes)
-            else: #default is baseline
-                ensemble=self._baseline_ensemble()
+            best_individual = sorted(self.population, key=lambda ind: ind.objective_values[objective_index])[0]
+        return best_individual
 
-            ensemble_size = len(ensemble)
-            if ensemble_size == 0:
-                return None
-
-            voting_threshold = ensemble_size/2
-            predictions = np.array([self.Model.evaluate(individual.fenotype, x) for individual in ensemble])
-            prediction = [1 # most voted class value, minority class preferred
-                        if sum(predictions[:,pred_idx]) > voting_threshold 
-                        else 0 # less voted class value
-                        for pred_idx in range(len(predictions[0]))] # WRONG this needs to be changed if classes are not 1 or 0
-
-        return prediction
-
-    def _rpf_ensemble(self, objective_indexes=None):
+    def get_ensemble(self, ensemble_type=None, rpf_objective_indexes_to_care=None):
         """
         Keyword arguments:
-            objective_indexes are the indexes of the objectives to be considered as filter
-        Returns:
-            the ensemble of individuals as an array
+            ensemble types are baseline or rpf
+            rpf_objective_indexes_to_care is a list of objective indexes as integers
+        Returns ensemble of individuals in the pareto front in a list
         """
-        if objective_indexes is None: 
-            objective_indexes = [i for i in range(len(self.objective_functions))]
+        if ensemble_type is None:
+            ensemble_type = self.ensemble_type
         ensemble = []
-        for individual in self.population:
-            if individual.evaluation[0] > 0: useful_individual = False
-            else: useful_individual = True
-            for obj_idx, obj_value in enumerate(individual.objective_values):
-                if obj_idx in objective_indexes:
-                    if obj_value <= 0.5:
-                        useful_individual = False
-                        break
-            if useful_individual:
-                ensemble.append(individual)
-        return ensemble
 
-    def _baseline_ensemble(self):
-        """
-            the ensemble of individuals from the pareto front as an array
-        """
-        ensemble = []
-        for individual in self.population:
-            if individual.evaluation[0] == 0:  # choose only pareto front individuals
-                ensemble.append(individual)
-        return ensemble
+        if ensemble_type == "baseline":
+            for individual in self.population:
+                if individual.evaluation[0] == 0:  # choose only pareto front individuals
+                    ensemble.append(individual)
 
-    def load_from_file(self, file_name, desired_generation = None):
-        """
-        Positional arguments:
-            file_name: expect the path + file name in string format
-        Retrieves the population for the last generation from the file.
-        It will overwrite current population.
-        File format:
-            Each row is an individual
-            First row is headers
-            Minimum column names: generation, fenotype
-        """
-        print("In load")
-        with open(file_name, mode="r") as read_file:
-            reader = csv.DictReader(read_file)
-            logs_dict = {}
-            for row in reader:
-                logs_dict[(row["generation"], row["individual_index"])] = row["fenotype"]
+        elif ensemble_type == "rpf":
+            if rpf_objective_indexes_to_care is None: 
+                rpf_objective_indexes_to_care = [i for i in range(len(self.objectives))]
             
-        if desired_generation is None:
-            desired_generation = max([x[0] for x in logs_dict.keys()])
-        ind_indexes = [x[1] for x in logs_dict.keys()]
+            useful_individual = True
+            for individual in self.population:
+                if individual.evaluation[0] > 0:
+                    useful_individual = False
+                for obj_idx, obj_value in enumerate(individual.objective_values):
+                    if obj_idx in objective_indexes:
+                        if obj_value >= 0.5: #Minimize or maximize dependency
+                            useful_individual = False
+                            break
+                if useful_individual:
+                    ensemble.append(individual)
+        
+        return ensemble
 
-        for ind_idx in ind_indexes:
-            print(logs_dict[(desired_generation, ind_idx)])
-            fenotype = self.Model.generate_from_string(logs_dict[(desired_generation, ind_idx)])
-            individual = IndividualClass(fenotype)
+    def evaluate(self, x=None, y=None, ensemble=None, ensemble_decision="votation", objective_function_name=None):
+        """
+        ensemble can be a group of individuals or one single individual
+        """
+        if x is not None and y is not None:
+            self.x = x
+            self.y = y
+        if ensemble is None:
+            if self.objectives == 1:
+                ensemble = self.get_best_individual()
+            else:
+                ensemble = self.get_ensemble()
+        objective_function = self._objective_function_parser(objective_function_name)
+
+
+        return objective_values
+
+    def _objective_function_parser(self,name):
+        if name == "single_goal_accuracy":
+            objective_function = self.single_goal_accuracy
+        elif name == "mse":
+            objective_function = self.mse
+        elif name == "rmse":
+            objective_function = self.rmse
+        elif name == "errors_by_threshold":
+            objective_function = self.errors_by_threshold
+        elif name == "accuracy":
+            objective_function = self.accuracy
+        elif name == "tree_depth":
+            objective_function = self.tree_depth
+        elif name == "tree_size":
+            objective_function = self.tree_size
+        else:
+            print("wrong objective function name")
+        return objective_function
 
     
     def _evaluate_population(self):
@@ -326,25 +313,8 @@ class GeneticProgramClass:
             if individual.objective_values is None:
                 individual.objective_values = []
                 for obj_idx, objective_function in enumerate(self.objective_functions):
-                    if objective_function == "single_goal_accuracy":
-                        objective_function = self.single_goal_accuracy
-                    elif objective_function == "mse":
-                        objective_function = self.mse
-                    elif objective_function == "rmse":
-                        objective_function = self.rmse
-                    elif objective_function == "errors_by_threshold":
-                        objective_function = self.errors_by_threshold
-                    elif objective_function == "accuracy":
-                        objective_function = self.accuracy
-                    elif objective_function == "tree_depth":
-                        objective_function = self.tree_depth
-                    elif objective_function == "tree_size":
-                        objective_function = self.tree_size
-                    else:
-                        print("wrong objective function name")
                     individual.objective_values.append(objective_function(individual, *self.objective_functions_arguments[obj_idx]))
                     
-
         if self.objectives == 1:
             for ind_idx, individual in enumerate(self.population):
                 individual.evaluation = individual.objective_values
@@ -358,7 +328,7 @@ class GeneticProgramClass:
 
                 ### for plotting
                 logaritmical_plots = False
-                if "mse" in self.objective_functions:
+                if "mse" in self.objective_functions_names or "rmse" in self.objective_functions_names:
                     logaritmical_plots = True
 
                 title = "Gen " + str(self.ran_generations)
@@ -377,18 +347,17 @@ class GeneticProgramClass:
             elif self.multiobjective_fitness == "NSGA2": # pending
                 pass 
 
-            crowding_distances = self._crowding_distance(objective_values)
+            crowding_distances = self._crowding_distance()
             for ind_idx, individual in enumerate(self.population):
                 individual.evaluation.append(crowding_distances[ind_idx])
 
-    def _crowding_distance(self, objective_values):
+    def _crowding_distance(self, objective_indexes_to_ignore=None):
         """
         Positional arguments:
-            objective_values is a list of lists, with ordered values for each objective to be considered
+            objective_indexes_to_ignore is a list of lists, with ordered values for each objective to be considered
         Returns: a list of values with a crowding distance as a float. 0 means the one with higher distance
         """
         crowding_distances = [[0 for _ in range(self.objectives)] for _ in range(len(self.population))]
-        #print(np.array(crowding_distances).shape)
         objective_values_list = [[] for _ in range(self.objectives)]
         for obj_idx in range(self.objectives):
             #interpolate
@@ -396,7 +365,6 @@ class GeneticProgramClass:
             """ This to interpolate and give same importance?
             max_ov = max(temp_objective_list)
             min_ov = min(temp_objective_list)
-
             if max_ov == min_ov:
                 print("In crowding distance: objective values are in the same range, skipping interpolation")
             elif abs(max_ov) == np.inf or abs(min_ov) == np.inf:
@@ -405,17 +373,7 @@ class GeneticProgramClass:
                 interpolate_function = interp1d([max_ov, min_ov],[0,1])
                 temp_objective_list = interpolate_function(temp_objective_list)
             """
-
-            #objective_values_list[obj_idx] = sorted([(ind.objective_values[obj_idx], ind_idx) for ind_idx, ind in enumerate(self.population)], key = lambda x: x[0])
             objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
-            #print("obj_idx",obj_idx,
-            #    "min_ov",min_ov, "0", objective_values_list[obj_idx][0][0],
-            #    "max_ov",max_ov, "1", objective_values_list[obj_idx][-1][0],
-            #    "min_ind_idx", objective_values_list[obj_idx][0][1],
-            #    "max_ind_idx", objective_values_list[obj_idx][-1][1],)
-        #print(np.array(objective_values_list).shape)
-
-            
 
         for obj_idx in range(self.objectives):
             for sorted_idx, (objective_value, ind_idx) in enumerate(objective_values_list[obj_idx]):
@@ -427,26 +385,9 @@ class GeneticProgramClass:
                     crowding_distances[ind_idx][obj_idx] = (abs1 + abs2)/2
 
         crowding_distance = [np.mean(crowding_distances[ind_idx]) for ind_idx in range(len(self.population))]
-        #print(crowding_distance)
         max_cd = max([x for x in crowding_distance if x != np.inf])
         inverted_crowding_distances = [max_cd - cd if cd != np.inf else -np.inf for cd in crowding_distance]
 
-
-        """
-        items = list(zip(*objective_values, list(range(len(objective_values[0])))))
-        distances = defaultdict(list)
-        for objective_idx in range(len(objective_values)):
-            items.sort(key=lambda item: item[objective_idx])
-            distances[items[0][-1]].append(-np.inf)
-            distances[items[-1][-1]].append(-np.inf)
-            for i in range(1, len(items) - 1):
-                distances[items[i][-1]].append(items[i + 1][objective_idx] - items[i - 1][objective_idx])
-        indexes_mean_distances = [(item_index, sum(ds) / len(objective_values)) for item_index, ds in distances.items()]
-        indexes_mean_distances.sort(key=lambda t: t[0])
-        crowding_distances = [d for i, d in indexes_mean_distances]
-        max_cd = max(crowding_distances)
-        inverted_crowding_distances = [max_cd - cd for cd in crowding_distances]
-        """
         return inverted_crowding_distances
 
     def _spea2(self, objective_values):
@@ -507,7 +448,9 @@ class GeneticProgramClass:
         return selection
 
     def logs_checkpoint(self):
-        #individual wise logs
+        """
+        Updates self.logs and self.genlogs
+        """
         for ind_idx, individual in enumerate(self.population):
             self.logs[(self.ran_generations,ind_idx)] = [
 										                str(individual.fenotype) 
@@ -524,7 +467,7 @@ class GeneticProgramClass:
         self.genlogs[(self.ran_generations,"std_tree_depth")] = [np.std([ind.fenotype.my_depth() for ind in self.population])]
         self.genlogs[(self.ran_generations,"non_dominated_solutions")] = [str(len([0 for ind in self.population if ind.evaluation[0] == 0]))]
         for obj_idx in range(self.objectives):
-            self.genlogs[(self.ran_generations,"objective_" + str(obj_idx + 1) + "_name")] = [self.objective_functions[obj_idx]]
+            self.genlogs[(self.ran_generations,"objective_" + str(obj_idx + 1) + "_name")] = [self.objective_functions_names[obj_idx]]
             self.genlogs[(self.ran_generations,"mean_objective_value_" + str(obj_idx + 1))] = [np.mean([ind.objective_values[obj_idx] for ind in self.population])]
             self.genlogs[(self.ran_generations,"std_objective_value_" + str(obj_idx + 1))] = [np.std([ind.objective_values[obj_idx] for ind in self.population])]
             best_by_obj = sorted(self.population, key=lambda x: x.objective_values[obj_idx])[0]
@@ -542,16 +485,16 @@ class GeneticProgramClass:
     ##### Objective functions
 
     def single_goal_accuracy(self, individual, goal_class):
-        y = self.y_train
-        values = self.Model.evaluate(individual.fenotype, self.x_train)
+        y = self.y
+        values = self.Model.evaluate(individual.fenotype, self.x)
         y_predicted = map_to_binary(values)
         corrects = sum([1 if y_predicted[i] == y[i] and y[i] == goal_class else 0 for i in range(len(y))])
         accuracy = corrects / y.count(goal_class)
         return 1-accuracy
 
     def mse(self, individual):
-        y = self.y_train
-        y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
+        y = self.y
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x)
         n = len(y)
         MSE = sum([pow(y[i]-y_predicted[i],2) for i in range(n)]) / n
         #if MSE > 10000: return 10000
@@ -567,16 +510,16 @@ class GeneticProgramClass:
         return individual.fenotype.my_depth()
 
     def accuracy(self, individual):
-        y = self.y_train
-        values = self.Model.evaluate(individual.fenotype, self.x_train)
+        y = self.y
+        values = self.Model.evaluate(individual.fenotype, self.x)
         y_predicted = map_to_binary(values)
         corrects = sum([1 if y_predicted[i] == y[i] else 0 for i in range(len(y))])
         accuracy = corrects / len(y)
         return 1-accuracy
 
     def errors_by_threshold(self, individual, threshold = 0.01):
-        y = self.y_train
-        y_predicted = self.Model.evaluate(individual.fenotype, self.x_train)
+        y = self.y
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x)
         errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])
         error_rate = errors/len(y)
         return error_rate

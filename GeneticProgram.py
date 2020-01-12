@@ -22,11 +22,10 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 
 #TO DO:
 #GENERIC VOTATION
-#GENERATIONAL LOGS
 #NSGA2
 #Bloat control by lenght, not depth only
 #no tiebreak if doesnt matter
-#crowding distance on standardized opbjective values?
+# max tree depth and size to set between 0 and 1
 
 import math
 import random as rd
@@ -252,38 +251,74 @@ class GeneticProgramClass:
 
         elif ensemble_type == "rpf":
             if rpf_objective_indexes_to_care is None: 
-                rpf_objective_indexes_to_care = [i for i in range(len(self.objectives))]
+                rpf_objective_indexes_to_care = [i for i in range(self.objectives)]
             
-            useful_individual = True
             for individual in self.population:
+                useful_individual = True
                 if individual.evaluation[0] > 0:
                     useful_individual = False
-                for obj_idx, obj_value in enumerate(individual.objective_values):
-                    if obj_idx in objective_indexes:
-                        if obj_value >= 0.5: #Minimize or maximize dependency
-                            useful_individual = False
-                            break
+                else:
+                    for obj_idx, obj_value in enumerate(individual.objective_values):
+                        if obj_idx in rpf_objective_indexes_to_care:
+                            if obj_value >= 0.5: #Minimize or maximize dependency
+                                useful_individual = False
+                                break
                 if useful_individual:
                     ensemble.append(individual)
+        else:
+            print("wrong ensemble type")
+        if len(ensemble)==0:
+            print("Not a single individual did meet ensemble criteria")
         
         return ensemble
 
-    def evaluate(self, x=None, y=None, ensemble=None, ensemble_decision="votation", objective_function_name=None):
+    def get_ensemble_votations(self, x=None, y=None, ensemble=None, ensemble_decision="votation"):
         """
-        ensemble can be a group of individuals or one single individual
+        Assumes binary classification between class 0 and 1 (ints)
+        Returns a list with votation rates for class 0 and class 1
         """
-        if x is not None and y is not None:
-            self.x = x
-            self.y = y
+        if x is None or y is None:
+            x = self.x 
+            y = self.y
+        samples = len(y)
         if ensemble is None:
-            if self.objectives == 1:
-                ensemble = self.get_best_individual()
+            ensemble = self.get_ensemble()
+
+        y_predicted_collection = []
+        for individual in ensemble:
+            values = self.Model.evaluate(individual.fenotype, x)
+            y_predicted_collection.append(map_to_binary(values))
+        y_predicted_collection = np.array(y_predicted_collection)
+
+        if ensemble_decision == "votation":
+            y_predicted_votations = [[0,0] for _ in range(samples)]
+            for sample_idx in range(samples):
+                votations_list = list(y_predicted_collection[:,sample_idx])
+                y_predicted_votations[sample_idx] = [votations_list.count(0)/samples, votations_list.count(1)/samples]
+            
+        return y_predicted_votations
+
+    def evaluate_ensemble_accuracy(self, x=None, y=None, ensemble=None, ensemble_decision="votation"):
+        """
+        Returns overall ensemble accuracy
+        """
+        if x is None or y is None:
+            x = self.x 
+            y = self.y
+        if ensemble is None:
+            ensemble = self.get_ensemble()
+
+        y_predicted_votations = self.get_ensemble_votations(x, y, ensemble, ensemble_decision)
+        y_predicted = []
+        for votations in y_predicted_votations:
+            if votations[0] > votations[1]: #if tied, 1
+                y_predicted.append(0)
             else:
-                ensemble = self.get_ensemble()
-        objective_function = self._objective_function_parser(objective_function_name)
+                y_predicted.append(1)
+        corrects = sum([1 if y_predicted[i] == y[i] else 0 for i in range(len(y))])
+        accuracy = corrects / len(y)
 
-
-        return objective_values
+        return accuracy
 
     def _objective_function_parser(self,name):
         if name == "single_goal_accuracy":
@@ -327,9 +362,11 @@ class GeneticProgramClass:
                     individual.evaluation = [evaluations[ind_idx]]
 
                 ### for plotting
-                logaritmical_plots = False
-                if "mse" in self.objective_functions_names or "rmse" in self.objective_functions_names:
-                    logaritmical_plots = True
+                logaritmical_plots = [False,False]
+                if self.objective_functions_names[0] == "mse" or self.objective_functions_names[0] == "rmse":
+                    logaritmical_plots[0] = True
+                if self.objective_functions_names[1] == "mse" or self.objective_functions_names[1] == "rmse":
+                    logaritmical_plots[1] = True
 
                 title = "Gen " + str(self.ran_generations)
                 colored_plot(objective_values[0], 
@@ -504,10 +541,10 @@ class GeneticProgramClass:
         return math.sqrt(self.mse(individual))
 
     def tree_size(self, individual):
-        return individual.fenotype.nodes_count()
+        return individual.fenotype.nodes_count()/self.Model.max_nodes
 
     def tree_depth(self, individual):
-        return individual.fenotype.my_depth()
+        return individual.fenotype.my_depth()/self.Model.max_depth
 
     def accuracy(self, individual):
         y = self.y
@@ -566,7 +603,7 @@ def logs_to_file(logs, path, logs_by_gen = False): #some hardcoded rules
             logs_writer.writerow([str(key[0]), str(key[1]), *values])
 
 
-def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None, logaritmical = False):  #some hardcoded rules
+def colored_plot(x, y, values, title = "default_title", colormap = "cool", markers = None, marker_size = 50, save = False, path = None, logaritmical = [False,False]):  #some hardcoded rules
         path = verify_path(path)
         f = plt.figure()   
         f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
@@ -574,11 +611,13 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
         max_value = max(values)
         min_value = min(values)
         colors = [(1 - (value - min_value)) / (max_value - min_value + 0.001) for value in values]
-        log_string = ""
-        if logaritmical:
+        log_string = ["",""]
+        if logaritmical[0]:
             x = [math.log(xi) if math.log(xi)>0 or xi != 0 else 0 for xi in x]
+            log_string[0] += " (log)"
+        if logaritmical[1]:
             y = [math.log(yi) if math.log(yi)>0 or yi != 0 else 0 for yi in y]
-            log_string += " (log)"
+            log_string[1] += " (log)"
 
         nondoms = np.array([[x[i],y[i]] for i in range(len(y)) if markers[i] == 0])
         doms = np.array([[x[i],y[i]] for i in range(len(y)) if markers[i] != 0])
@@ -645,8 +684,8 @@ def colored_plot(x, y, values, title = "default_title", colormap = "cool", marke
         plt.title(title)
         plt.xlim(left=0)
         plt.ylim(bottom=0)
-        plt.xlabel("Objective 1" + log_string)
-        plt.ylabel("Objective 2" + log_string)
+        plt.xlabel("Objective 1" + log_string[0])
+        plt.ylabel("Objective 2" + log_string[1])
         plt.grid()
         
         if save:

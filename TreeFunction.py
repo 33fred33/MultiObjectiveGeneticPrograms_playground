@@ -34,7 +34,8 @@ class TreeFunctionClass:
             features,
             operators,
             max_initial_depth = 3,
-            max_depth = 15,
+            max_depth = 15, #set default?
+            max_nodes = None,
             initialisation_method = "ramped half half",
             mutation_method = "subtree",
             bloat_control = "iteration"):
@@ -45,14 +46,28 @@ class TreeFunctionClass:
         Keyword arguments:
             max_initial_depth: restricts depth of generated functions in their tree representation. Default is 3
             max_depth: stablishes the limit for the tree depth, to be tested after every mutation or crossover. Default is 15
+            max_nodes: stablishes the limit for the tree nodes, to be tested after every mutation or crossover. Default is None and will be calculated with max_depth
             initialisation_method: can be "ramped half half", "grow", "full", "ramped full", "ramped grow", "half half". Default is ramped half half
             mutation_method: can be "subtree" or "unit". Default is subtree
             bloat_control can be iteration or minimum decrease
         """
         self.features = features
         self.operators = operators
+        arities = []
+        for operator in operators:
+            sig = signature(operator)
+            arity = len(sig.parameters)
+            arities.append(arity)
+        self.max_arity = max(arities)
         self.max_initial_depth = max_initial_depth
         self.max_depth = max_depth
+        self.max_nodes = max_nodes
+        #if self.max_depth is None:
+        #    self.max_depth = int(max_nodes)
+        if self.max_nodes is None:
+            self.max_nodes = sum([math.pow(self.max_arity,i) for i in range(self.max_depth)])
+        #print("self.max_arity, self.max_nodes",self.max_arity, self.max_nodes)
+
         self.initialisation_method = initialisation_method
         self.mutation_method = mutation_method
         self.bloat_control = bloat_control
@@ -72,17 +87,6 @@ class TreeFunctionClass:
         Operators can commented if not needed as an option
         """
         return rd.choice(self.operators)
-        """
-        return rd.choice([
-            operator.add
-            ,operator.sub
-            ,operator.mul
-            ,safe_divide
-            #,signed_if
-            #,math.sin
-            ])
-        """
-
         
     def _generate_individual_full(self, max_depth, parent=None, depth=0): #can be mixed with full
         """

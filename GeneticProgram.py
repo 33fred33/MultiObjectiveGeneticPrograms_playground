@@ -294,7 +294,7 @@ class GeneticProgramClass:
             y_predicted_votations = [[0,0] for _ in range(samples)]
             for sample_idx in range(samples):
                 votations_list = list(y_predicted_collection[:,sample_idx])
-                y_predicted_votations[sample_idx] = [votations_list.count(0)/samples, votations_list.count(1)/samples]
+                y_predicted_votations[sample_idx] = [votations_list.count(0)/len(ensemble), votations_list.count(1)/len(ensemble)]
             
         return y_predicted_votations
 

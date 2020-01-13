@@ -9,7 +9,8 @@ import math
 import numpy as np
 import csv
 import random as rd
-
+import pickle
+from skimage.feature import hog
 
 def load_from_csv(name, ints = False):
     """
@@ -58,6 +59,26 @@ def feature_extractor(image, box_size = 6, stride = 6, ignore_borders = 2):
             features.append(np.std(box))
     return np.array(features)
 
+def extract_hog(X):
+            return np.array([
+                hog(x,
+                    pixels_per_cell=(6, 6),
+                    cells_per_block=(3, 3),
+                    transform_sqrt=True)
+                for x in X])
+
+def read_data_file(filename):
+    with open(f"./datasets/cifar-10/{filename}", "rb") as file:
+        d = pickle.load(file, encoding="bytes")
+        raw_data = np.array(d[b"data"])
+        return (
+            extract_hog(
+                np.rollaxis(
+                    raw_data.reshape((-1, 3, 32, 32)),
+                    1,
+                    4)),
+            np.array(d[b"labels"]))
+
 class Problem:
     def __init__(self, name, variant):
         self.name = name
@@ -79,11 +100,11 @@ class Problem:
             self.problem_type = "classification"
             self.problem_labels = [1,0]
 
-        elif name == "MNIST":
-            self.x_train = load_from_csv("datasets/MNIST_x_train")
-            self.x_test = load_from_csv("datasets/MNIST_x_test")
-            self.y_train = load_from_csv("datasets/MNIST" + variant + "_y_train", True)
-            self.y_test = load_from_csv("datasets/MNIST" + variant + "_y_test", True)
+        elif name == "MNIST": #test and train are swapped in the csv's!
+            self.x_train = load_from_csv("datasets/MNIST_x_test")
+            self.x_test = load_from_csv("datasets/MNIST_x_train")
+            self.y_train = load_from_csv("datasets/MNIST" + variant + "_y_test", True)
+            self.y_test = load_from_csv("datasets/MNIST" + variant + "_y_train", True)
             self.problem_type = "classification"
             self.problem_labels = ["0","1","2","3","4","5","6","7","8","9"]
 
@@ -106,3 +127,15 @@ class Problem:
             self.y_test = [single_variable_polynomial(x, coefficients) for x in self.x_test]
             self.problem_type = "approximation"
             self.problem_labels = None
+
+        elif name == "CIFAR":
+            TRAIN_FILES = [f"data_batch_{n}" for n in range(1, 6)]
+            X_trains, y_trains = zip(*[read_data_file(filename) for filename in TRAIN_FILES])
+            self.x_train, y_train = np.concatenate(X_trains), np.concatenate(y_trains)
+            self.x_test, y_test = read_data_file("test_batch")
+            self.y_train = [1 if str(y)==variant else 0 for y in y_train]
+            self.y_test = [1 if str(y)==variant else 0 for y in y_test]
+
+
+
+            self.problem_type = "classification"

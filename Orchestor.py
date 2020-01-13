@@ -24,9 +24,6 @@ import time
 import math
 import sys
 import pickle
-from sklearn.model_selection import train_test_split
-from datasets.load_pedestrian import load_pedestrian_data
-from skimage.feature import hog
 import numpy as np
 import argparse
 import random as rd
@@ -279,7 +276,7 @@ with open(path + "results_by_run.csv", mode='w') as last_file:
                 values = [str(v) for v in value]
                 last_writer.writerow([str(key[1]), *values])
 
-
+"""
 print("Train")
 print("Baseline Ensemble lenght:",len(GP.get_ensemble()))
 print("Baseline Ensemble accuracy:",GP.evaluate_ensemble_accuracy())
@@ -292,7 +289,7 @@ print("Baseline Ensemble accuracy:",GP.evaluate_ensemble_accuracy(x=x_test,y=y_t
 rpf_ensemble = GP.get_ensemble(ensemble_type="rpf")
 print("RPF Ensemble lenght:",len(rpf_ensemble))
 print("RPF Ensemble accuracy:",GP.evaluate_ensemble_accuracy(ensemble = rpf_ensemble,x=x_test,y=y_test))
-
+"""
 
 
 

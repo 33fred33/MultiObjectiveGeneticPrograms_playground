@@ -27,6 +27,7 @@ import pickle
 import numpy as np
 import argparse
 import random as rd
+import matplotlib.pyplot as plt
 
 def verify_path(tpath):
     """
@@ -54,7 +55,7 @@ def plot_this(x, y, title, path, xlabel, ylabel):
     f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
 
 
-
+    plt.plot(x,y)
 
     plt.title(title)
     plt.xlim(left=0)
@@ -209,6 +210,18 @@ TF = tf.TreeFunctionClass(
 all_genlogs = []
 run_times = []
 run_time = 0
+
+if args.problem == "symbollic_regression":
+    tree_size_by_gen = {}
+    rmse_by_gen = {}
+    best_rmse_by_gen = {}
+    best_rmse_tree_size_by_gen = {}
+    for gen in range(args.generations + 1):
+        tree_size_by_gen[gen] = []
+        rmse_by_gen[gen] = []
+        best_rmse_by_gen[gen] = []
+        best_rmse_tree_size_by_gen[gen] = []
+
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
     GP = gp.GeneticProgramClass(
@@ -234,6 +247,40 @@ for run in range(args.runs):
     if args.problem == "symbollic_regression":
         for obj_idx in range(len(objective_functions)):
             run_genlogs[(args.generations, "best_ind_for_obj_"+str(obj_idx)+ "_errors_by_threshold_in_symb_reg")] = [GP.errors_by_threshold(sorted(GP.population, key=lambda x: x.objective_values[obj_idx])[0])]
+
+        for gen in range(args.generations + 1):
+            tree_size_by_gen[gen].append(run_genlogs[(gen,"mean_tree_size")])
+            rmse_by_gen[gen].append(run_genlogs[(gen,"mean_objective_value_1")])
+            best_rmse_by_gen[gen].append(run_genlogs[(gen,"best_value_reached_for_objective_1_(min_is_best)")])
+            best_rmse_tree_size_by_gen[gen].append(run_genlogs[(gen,"best_individual_for_objective_1_tree_size")])
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in tree_size_by_gen.items()], 
+                title = "Tree_size", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "Average tree size")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[math.log(np.mean(value)) for key,value in rmse_by_gen.items()], 
+                title = "RMSE", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "Average RMSE (log)")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_rmse_by_gen.items()], 
+                title = "Best_RMSE", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "Average best RMSE")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_rmse_tree_size_by_gen.items()], 
+                title = "Best_RMSE_tree_size", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "Average tree size")
 
     print("\nRun ",run," time", run_time)
     all_genlogs.append(run_genlogs)

@@ -554,7 +554,7 @@ class GeneticProgramClass:
         accuracy = corrects / len(y)
         return 1-accuracy
 
-    def errors_by_threshold(self, individual, threshold = 0.01):
+    def errors_by_threshold(self, individual, threshold = 0.1):
         y = self.y
         y_predicted = self.Model.evaluate(individual.fenotype, self.x)
         errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])

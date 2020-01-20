@@ -48,6 +48,26 @@ def verify_path(tpath):
                     raise
         return tpath
 
+def plot_this(x, y, title, path, xlabel, ylabel):
+    path = verify_path(path)
+    f = plt.figure()   
+    f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
+
+
+
+
+    plt.title(title)
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid()
+
+    name = path + title + ".png"
+    plt.savefig(name)
+    plt.close('all')
+    
+
 
 #Arguments handling:
 parser = argparse.ArgumentParser()
@@ -276,20 +296,6 @@ with open(path + "results_by_run.csv", mode='w') as last_file:
                 values = [str(v) for v in value]
                 last_writer.writerow([str(key[1]), *values])
 
-"""
-print("Train")
-print("Baseline Ensemble lenght:",len(GP.get_ensemble()))
-print("Baseline Ensemble accuracy:",GP.evaluate_ensemble_accuracy())
-rpf_ensemble = GP.get_ensemble(ensemble_type="rpf")
-print("RPF Ensemble lenght:",len(rpf_ensemble))
-print("RPF Ensemble accuracy:",GP.evaluate_ensemble_accuracy(ensemble = rpf_ensemble))
-print("Test")
-print("Baseline Ensemble lenght:",len(GP.get_ensemble()))
-print("Baseline Ensemble accuracy:",GP.evaluate_ensemble_accuracy(x=x_test,y=y_test))
-rpf_ensemble = GP.get_ensemble(ensemble_type="rpf")
-print("RPF Ensemble lenght:",len(rpf_ensemble))
-print("RPF Ensemble accuracy:",GP.evaluate_ensemble_accuracy(ensemble = rpf_ensemble,x=x_test,y=y_test))
-"""
 
 
 

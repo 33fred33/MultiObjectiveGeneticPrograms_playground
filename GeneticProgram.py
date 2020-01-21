@@ -26,6 +26,7 @@ Tournament selection of size n: n individuals are uniformly randomly picked from
 #Bloat control by lenght, not depth only
 #no tiebreak if doesnt matter
 # max tree depth and size to set between 0 and 1
+#store tree evaluations?
 
 import math
 import random as rd
@@ -513,6 +514,18 @@ class GeneticProgramClass:
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_all_objective_values")] = [best_by_obj.objective_values]
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_size")] = [best_by_obj.fenotype.nodes_count()]
             self.genlogs[(self.ran_generations,"best_individual_for_objective_" + str(obj_idx + 1) + "_tree_depth")] = [best_by_obj.fenotype.my_depth()]
+
+        #temporal
+
+        error_by_threshold_1 = [self.errors_by_threshold(ind,threshold=1) for ind in self.population]
+        error_by_threshold_0_1 = [self.errors_by_threshold(ind,threshold=0.1) for ind in self.population]
+        error_by_threshold_0_01 = [self.errors_by_threshold(ind,threshold=0.01) for ind in self.population]
+        self.genlogs[(self.ran_generations,"mean_error_by_threshold_1")] = [np.mean(error_by_threshold_1)]
+        self.genlogs[(self.ran_generations,"mean_error_by_threshold_0.1")] = [np.mean(error_by_threshold_0_1)]
+        self.genlogs[(self.ran_generations,"mean_error_by_threshold_0.01")] = [np.mean(error_by_threshold_0_01)]
+        self.genlogs[(self.ran_generations,"best_error_by_threshold_1")] = [min(error_by_threshold_1)]
+        self.genlogs[(self.ran_generations,"best_error_by_threshold_0.1")] = [min(error_by_threshold_0_1)]
+        self.genlogs[(self.ran_generations,"best_error_by_threshold_0.01")] = [min(error_by_threshold_0_01)]
 
         logs_to_file(self.genlogs, self.experiment_name, logs_by_gen = True)
             

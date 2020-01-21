@@ -216,11 +216,24 @@ if args.problem == "symbollic_regression":
     rmse_by_gen = {}
     best_rmse_by_gen = {}
     best_rmse_tree_size_by_gen = {}
+    error_by_threshold_1 = {}
+    error_by_threshold_01 = {}
+    error_by_threshold_001 = {}
+    best_error_by_threshold_1 = {}
+    best_error_by_threshold_01 = {}
+    best_error_by_threshold_001 = {}
+    #best_success_by_gen = {}
     for gen in range(args.generations + 1):
         tree_size_by_gen[gen] = []
         rmse_by_gen[gen] = []
         best_rmse_by_gen[gen] = []
         best_rmse_tree_size_by_gen[gen] = []
+        error_by_threshold_1[gen] = []
+        error_by_threshold_01[gen] = []
+        error_by_threshold_001[gen] = []
+        best_error_by_threshold_1[gen] = []
+        best_error_by_threshold_01[gen] = []
+        best_error_by_threshold_001[gen] = []
 
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
@@ -253,6 +266,12 @@ for run in range(args.runs):
             rmse_by_gen[gen].append(run_genlogs[(gen,"mean_objective_value_1")])
             best_rmse_by_gen[gen].append(run_genlogs[(gen,"best_value_reached_for_objective_1_(min_is_best)")])
             best_rmse_tree_size_by_gen[gen].append(run_genlogs[(gen,"best_individual_for_objective_1_tree_size")])
+            error_by_threshold_1[gen].append(run_genlogs[(gen,"mean_error_by_threshold_1")])
+            error_by_threshold_01[gen].append(run_genlogs[(gen,"mean_error_by_threshold_0.1")])
+            error_by_threshold_001[gen].append(run_genlogs[(gen,"mean_error_by_threshold_0.01")])
+            best_error_by_threshold_1[gen].append(run_genlogs[(gen,"best_error_by_threshold_1")])
+            best_error_by_threshold_01[gen].append(run_genlogs[(gen,"best_error_by_threshold_0.1")])
+            best_error_by_threshold_001[gen].append(run_genlogs[(gen,"best_error_by_threshold_0.01")])
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in tree_size_by_gen.items()], 
@@ -281,6 +300,48 @@ for run in range(args.runs):
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "Average tree size")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in error_by_threshold_1.items()], 
+                title = "error_by_threshold_1", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_1")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in error_by_threshold_01.items()], 
+                title = "error_by_threshold_0.1", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_0.1")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in error_by_threshold_001.items()], 
+                title = "error_by_threshold_0.01", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_0.01")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_error_by_threshold_1.items()], 
+                title = "best_error_by_threshold_1", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_1")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_error_by_threshold_01.items()], 
+                title = "best_error_by_threshold_0.1", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_0.1")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_error_by_threshold_001.items()], 
+                title = "best_error_by_threshold_0.01", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_0.01")
 
     print("\nRun ",run," time", run_time)
     all_genlogs.append(run_genlogs)

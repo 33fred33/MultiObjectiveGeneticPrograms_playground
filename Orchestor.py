@@ -49,7 +49,7 @@ def verify_path(tpath):
                     raise
         return tpath
 
-def plot_this(x, y, title, path, xlabel, ylabel):
+def plot_this(x, y, title, path, xlabel, ylabel, xmax = None, ymax = None):
     path = verify_path(path)
     f = plt.figure()   
     f, axes = plt.subplots(nrows = 1, ncols = 1, sharex=True, sharey = True, figsize=(10,10))
@@ -63,6 +63,10 @@ def plot_this(x, y, title, path, xlabel, ylabel):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.grid()
+    if xmax is not None:
+        plt.xlim(right=xmax)
+    if ymax is not None:
+        plt.ylim(top=ymax)
 
     name = path + title + ".png"
     plt.savefig(name)
@@ -76,12 +80,12 @@ parser.add_argument("-p",
                     "--problem",
                     default="pedestrian",
                     type=str,
-                    help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbollic_regression")
+                    help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbolic_regression")
 parser.add_argument("-pv",
                     "--problem_variable",
                     default=None, #it was "0"
                     type=str,
-                    help="problem variable if needed (in symbollic_regression: 1,2,3 or 4)")
+                    help="problem variable if needed (in symbolic_regression: 1,2,3 or 4)")
 parser.add_argument("-ps",
                     "--population_size",
                     default=100,
@@ -99,9 +103,14 @@ parser.add_argument("-mid",
                     help="tree function initial population max depth")
 parser.add_argument("-md",
                     "--max_depth",
-                    default=15,
+                    default=8,
                     type=int,
                     help="tree function max depth allowed")
+parser.add_argument("-mn",
+                    "--max_nodes",
+                    default=1200,
+                    type=int,
+                    help="tree function max nodes allowed")
 parser.add_argument("-im",
                     "--initialisation_method",
                     default="ramped half half",
@@ -124,12 +133,12 @@ parser.add_argument("-sm",
                     help="genetic program's population selection method")
 parser.add_argument("-mr",
                     "--mutation_ratio",
-                    default=0.4,
+                    default=0.2,
                     type=float,
                     help="genetic program's population portion to be mutated (between 0 and 1)")
 parser.add_argument("-ts",
                     "--tournament_size",
-                    default=3,
+                    default=7,
                     type=int,
                     help="genetic program's tournament size, if tournament selection method enabled")
 parser.add_argument("-op",
@@ -203,6 +212,7 @@ TF = tf.TreeFunctionClass(
                             operators = operators,
                             max_initial_depth = args.max_initial_depth,
                             max_depth = args.max_depth,
+                            max_nodes = args.max_nodes,
                             initialisation_method = args.initialisation_method,
                             mutation_method = args.mutation_method)
 
@@ -211,30 +221,32 @@ all_genlogs = []
 run_times = []
 run_time = 0
 
-if args.problem == "symbollic_regression":
+if args.problem == "symbolic_regression":
     tree_size_by_gen = {}
     rmse_by_gen = {}
     best_rmse_by_gen = {}
     best_rmse_tree_size_by_gen = {}
-    error_by_threshold_1 = {}
     error_by_threshold_01 = {}
     error_by_threshold_001 = {}
-    best_error_by_threshold_1 = {}
+    error_by_threshold_0001 = {}
     best_error_by_threshold_01 = {}
     best_error_by_threshold_001 = {}
-    #best_success_by_gen = {}
+    best_error_by_threshold_0001 = {}
+    #success_count = {}
     for gen in range(args.generations + 1):
         tree_size_by_gen[gen] = []
         rmse_by_gen[gen] = []
         best_rmse_by_gen[gen] = []
         best_rmse_tree_size_by_gen[gen] = []
-        error_by_threshold_1[gen] = []
         error_by_threshold_01[gen] = []
         error_by_threshold_001[gen] = []
-        best_error_by_threshold_1[gen] = []
+        error_by_threshold_0001[gen] = []
         best_error_by_threshold_01[gen] = []
         best_error_by_threshold_001[gen] = []
+        best_error_by_threshold_0001[gen] = []
+        #success_count[gen] = []
 
+success = []
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
     GP = gp.GeneticProgramClass(
@@ -257,7 +269,7 @@ for run in range(args.runs):
     run_times.append(time.time() - start_time)
     
     #Run logs
-    if args.problem == "symbollic_regression":
+    if args.problem == "symbolic_regression":
         for obj_idx in range(len(objective_functions)):
             run_genlogs[(args.generations, "best_ind_for_obj_"+str(obj_idx)+ "_errors_by_threshold_in_symb_reg")] = [GP.errors_by_threshold(sorted(GP.population, key=lambda x: x.objective_values[obj_idx])[0])]
 
@@ -266,12 +278,13 @@ for run in range(args.runs):
             rmse_by_gen[gen].append(run_genlogs[(gen,"mean_objective_value_1")])
             best_rmse_by_gen[gen].append(run_genlogs[(gen,"best_value_reached_for_objective_1_(min_is_best)")])
             best_rmse_tree_size_by_gen[gen].append(run_genlogs[(gen,"best_individual_for_objective_1_tree_size")])
-            error_by_threshold_1[gen].append(run_genlogs[(gen,"mean_error_by_threshold_1")])
             error_by_threshold_01[gen].append(run_genlogs[(gen,"mean_error_by_threshold_0.1")])
             error_by_threshold_001[gen].append(run_genlogs[(gen,"mean_error_by_threshold_0.01")])
-            best_error_by_threshold_1[gen].append(run_genlogs[(gen,"best_error_by_threshold_1")])
+            error_by_threshold_0001[gen].append(run_genlogs[(gen,"mean_error_by_threshold_0.001")])
             best_error_by_threshold_01[gen].append(run_genlogs[(gen,"best_error_by_threshold_0.1")])
             best_error_by_threshold_001[gen].append(run_genlogs[(gen,"best_error_by_threshold_0.01")])
+            best_error_by_threshold_0001[gen].append(run_genlogs[(gen,"best_error_by_threshold_0.001")])
+            #success_count[gen].append() 
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in tree_size_by_gen.items()], 
@@ -281,67 +294,77 @@ for run in range(args.runs):
                 ylabel = "Average tree size")
 
         plot_this(x=list(range(args.generations + 1)),
-                y=[math.log(np.mean(value)) for key,value in rmse_by_gen.items()], 
-                title = "RMSE", 
+                y=[np.mean(value) for key,value in rmse_by_gen.items()], 
+                title = "Mean_objective1", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
-                ylabel = "Average RMSE (log)")
+                ylabel = "Average objective1")
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in best_rmse_by_gen.items()], 
-                title = "Best_RMSE", 
+                title = "Best_objective1", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
-                ylabel = "Average best RMSE")
+                ylabel = "Average best objective1")
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in best_rmse_tree_size_by_gen.items()], 
-                title = "Best_RMSE_tree_size", 
+                title = "Tree_size_of_the_best_objective1", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "Average tree size")
 
         plot_this(x=list(range(args.generations + 1)),
-                y=[np.mean(value) for key,value in error_by_threshold_1.items()], 
-                title = "error_by_threshold_1", 
-                path = args.experiment_name, 
-                xlabel = "Generation", 
-                ylabel = "error_by_threshold_1")
-
-        plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in error_by_threshold_01.items()], 
-                title = "error_by_threshold_0.1", 
+                title = "error_by_threshold_0_1", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "error_by_threshold_0.1")
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in error_by_threshold_001.items()], 
-                title = "error_by_threshold_0.01", 
+                title = "error_by_threshold_0_01", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "error_by_threshold_0.01")
 
         plot_this(x=list(range(args.generations + 1)),
-                y=[np.mean(value) for key,value in best_error_by_threshold_1.items()], 
-                title = "best_error_by_threshold_1", 
+                y=[np.mean(value) for key,value in error_by_threshold_0001.items()], 
+                title = "error_by_threshold_0_001", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
-                ylabel = "error_by_threshold_1")
+                ylabel = "error_by_threshold_0.001")
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in best_error_by_threshold_01.items()], 
-                title = "best_error_by_threshold_0.1", 
+                title = "best_error_by_threshold_0_1", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "error_by_threshold_0.1")
 
         plot_this(x=list(range(args.generations + 1)),
                 y=[np.mean(value) for key,value in best_error_by_threshold_001.items()], 
-                title = "best_error_by_threshold_0.01", 
+                title = "best_error_by_threshold_0_01", 
                 path = args.experiment_name, 
                 xlabel = "Generation", 
                 ylabel = "error_by_threshold_0.01")
+
+        plot_this(x=list(range(args.generations + 1)),
+                y=[np.mean(value) for key,value in best_error_by_threshold_0001.items()], 
+                title = "best_error_by_threshold_0_001", 
+                path = args.experiment_name, 
+                xlabel = "Generation", 
+                ylabel = "error_by_threshold_0.001")
+
+        success_threshold = 0.01
+        print(best_rmse_by_gen[args.generations][-1])
+        last_obj1_value = best_rmse_by_gen[args.generations][-1][0]
+        print()
+        if last_obj1_value < success_threshold:
+            success.append(1)
+        else:
+            success.append(0)
+        print("Success rate: ", str(sum(success)*100/len(success)),"%")
 
     print("\nRun ",run," time", run_time)
     all_genlogs.append(run_genlogs)
@@ -350,6 +373,9 @@ for run in range(args.runs):
     ename = verify_path(ename)
     with open(ename + "gp.p", "wb") as f:
         pickle.dump(GP, f) 
+
+    
+
 
 #Final logs
 final_lists = {key[1]:[] for key, _ in all_genlogs[0].items()}

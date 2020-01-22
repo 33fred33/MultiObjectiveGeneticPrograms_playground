@@ -108,7 +108,7 @@ class Problem:
             self.problem_type = "classification"
             self.problem_labels = ["0","1","2","3","4","5","6","7","8","9"]
 
-        elif name == "symbollic_regression":
+        elif name == "symbolic_regression":
             coefficients = [1,1,1]
             if variant == "1":
                 coefficients = [1,1,1]
@@ -118,9 +118,9 @@ class Problem:
                 coefficients = [1,1,1,1,1]
             elif variant == "4":
                 coefficients = [1,1,1,1,1,1]
-            fitness_cases = 201
-            train_interval = [-5,5]
-            test_interval = [-5,5]
+            fitness_cases = 20
+            train_interval = [-1,1]
+            test_interval = [-1,1]
             self.x_train = [[x] for x in np.linspace(train_interval[0],train_interval[1],fitness_cases)]
             self.x_test = [[rd.uniform(test_interval[0], test_interval[1])] for _ in range(fitness_cases)]
             self.y_train = [single_variable_polynomial(x, coefficients) for x in self.x_train]
@@ -139,3 +139,6 @@ class Problem:
 
 
             self.problem_type = "classification"
+
+        else:
+            print("Error source: Wrong problem name")

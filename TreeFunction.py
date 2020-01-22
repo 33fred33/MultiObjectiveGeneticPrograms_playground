@@ -194,7 +194,7 @@ class TreeFunctionClass:
             subtree = self._generate_individual_grow(self.max_initial_depth, parent = node_to_overwrite.parent)
 
             #max depth handling
-            while parent.my_depth() + (subtree.my_depth() - node_to_overwrite.my_depth()) > self.max_depth:
+            while parent.my_depth() + (subtree.my_depth() - node_to_overwrite.my_depth()) > self.max_depth or parent.nodes_count() + (subtree.nodes_count() - node_to_overwrite.nodes_count()) > self.max_nodes:
                 if self.bloat_control == "iteration":
                     node_to_overwrite = rd.choice(new_individual.subtree_nodes())
                     subtree = self._generate_individual_grow(self.max_initial_depth, parent = node_to_overwrite.parent)
@@ -231,7 +231,7 @@ class TreeFunctionClass:
         node_to_overwrite = rd.choice(new_individual.subtree_nodes()[1:])
 
         #max depth handling
-        while new_individual.my_depth() + (crossover_section.my_depth() - node_to_overwrite.my_depth()) > self.max_depth:
+        while new_individual.my_depth() + (crossover_section.my_depth() - node_to_overwrite.my_depth()) > self.max_depth or new_individual.nodes_count() + (crossover_section.nodes_count() - node_to_overwrite.nodes_count()) > self.max_nodes:
             if crossover_section.is_terminal():
                 print("In crossover node choice. This should never be reached")
                 break

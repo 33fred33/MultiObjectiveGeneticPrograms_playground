@@ -336,6 +336,10 @@ class GeneticProgramClass:
             objective_function = self.tree_depth
         elif name == "tree_size":
             objective_function = self.tree_size
+        elif name == "sum_absolute_errors":
+            objective_function = self.sum_absolute_errors
+        elif name == "mean_absolute_errors":
+            objective_function = self.mean_absolute_errors
         else:
             print("wrong objective function name")
         return objective_function
@@ -517,15 +521,15 @@ class GeneticProgramClass:
 
         #temporal
 
-        error_by_threshold_1 = [self.errors_by_threshold(ind,threshold=1) for ind in self.population]
         error_by_threshold_0_1 = [self.errors_by_threshold(ind,threshold=0.1) for ind in self.population]
         error_by_threshold_0_01 = [self.errors_by_threshold(ind,threshold=0.01) for ind in self.population]
-        self.genlogs[(self.ran_generations,"mean_error_by_threshold_1")] = [np.mean(error_by_threshold_1)]
+        error_by_threshold_0_001 = [self.errors_by_threshold(ind,threshold=0.001) for ind in self.population]
         self.genlogs[(self.ran_generations,"mean_error_by_threshold_0.1")] = [np.mean(error_by_threshold_0_1)]
         self.genlogs[(self.ran_generations,"mean_error_by_threshold_0.01")] = [np.mean(error_by_threshold_0_01)]
-        self.genlogs[(self.ran_generations,"best_error_by_threshold_1")] = [min(error_by_threshold_1)]
+        self.genlogs[(self.ran_generations,"mean_error_by_threshold_0.001")] = [np.mean(error_by_threshold_0_001)]
         self.genlogs[(self.ran_generations,"best_error_by_threshold_0.1")] = [min(error_by_threshold_0_1)]
         self.genlogs[(self.ran_generations,"best_error_by_threshold_0.01")] = [min(error_by_threshold_0_01)]
+        self.genlogs[(self.ran_generations,"best_error_by_threshold_0.001")] = [min(error_by_threshold_0_001)]
 
         logs_to_file(self.genlogs, self.experiment_name, logs_by_gen = True)
             
@@ -573,6 +577,19 @@ class GeneticProgramClass:
         errors = sum([1 if abs(y_predicted[i]-y[i])>threshold else 0 for i in range(len(y))])
         error_rate = errors/len(y)
         return error_rate
+
+    def sum_absolute_errors(self, individual):
+        y = self.y
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x)
+        sum_absolute_errors = sum([abs(y_predicted[i]-y[i]) for i in range(len(y))])
+        return sum_absolute_errors
+
+    def mean_absolute_errors(self, individual):
+        y = self.y
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x)
+        sum_absolute_errors = sum([abs(y_predicted[i]-y[i]) for i in range(len(y))])
+        mean_absolute_errors = sum_absolute_errors/len(y)
+        return mean_absolute_errors
 
 def map_to_binary(values, threshold = 0, class_over_threshold = 1, class_below_threshold = 0):
     """

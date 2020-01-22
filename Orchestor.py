@@ -247,6 +247,7 @@ if args.problem == "symbolic_regression":
         #success_count[gen] = []
 
 success = []
+success2 = []
 for run in range(args.runs):
     ename = args.experiment_name + "/run" + str(run)
     GP = gp.GeneticProgramClass(
@@ -359,12 +360,20 @@ for run in range(args.runs):
         success_threshold = 0.01
         print(best_rmse_by_gen[args.generations][-1])
         last_obj1_value = best_rmse_by_gen[args.generations][-1][0]
-        print()
+        #print()
         if last_obj1_value < success_threshold:
             success.append(1)
         else:
             success.append(0)
-        print("Success rate: ", str(sum(success)*100/len(success)),"%")
+        print("Success rate (0.01): ", str(sum(success)*100/len(success)),"%")
+
+        success2_threshold = 0.1
+        if last_obj1_value < success2_threshold:
+            success2.append(1)
+        else:
+            success2.append(0)
+        print("Success2 rate (0.1): ", str(sum(success2)*100/len(success2)),"%")
+
 
     print("\nRun ",run," time", run_time)
     all_genlogs.append(run_genlogs)

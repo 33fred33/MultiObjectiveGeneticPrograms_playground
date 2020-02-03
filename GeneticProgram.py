@@ -148,6 +148,7 @@ class GeneticProgramClass:
         self.genlogs = {}
         self.ran_generations = 0
         self.last_gen_time = 0
+
         
     def fit(self, x, y):
         """
@@ -349,6 +350,9 @@ class GeneticProgramClass:
         """
         Evaluates the entire population
         """
+        self.max_population_size = max([ind.fenotype.nodes_count() for ind in self.population])
+        self.max_population_depth = max([ind.fenotype.my_depth() for ind in self.population])
+
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
                 individual.objective_values = []
@@ -558,10 +562,10 @@ class GeneticProgramClass:
         return math.sqrt(self.mse(individual))
 
     def tree_size(self, individual):
-        return individual.fenotype.nodes_count()/self.Model.max_nodes
+        return individual.fenotype.nodes_count()/self.max_population_size
 
     def tree_depth(self, individual):
-        return individual.fenotype.my_depth()/self.Model.max_depth
+        return individual.fenotype.my_depth()/self.max_population_depth
 
     def accuracy(self, individual):
         y = self.y

@@ -33,8 +33,9 @@ class TreeFunctionClass:
     def __init__(self,
             features,
             operators,
-            max_initial_depth = 3,
-            max_depth = 15, #set default?
+            max_initial_depth = 5,
+            min_initial_depth = 3,
+            max_depth = 15,
             max_nodes = None,
             initialisation_method = "ramped half half",
             mutation_method = "subtree",
@@ -44,7 +45,8 @@ class TreeFunctionClass:
             features: number of features the tree will expect
             operators: a list with all the operations to be considered
         Keyword arguments:
-            max_initial_depth: restricts depth of generated functions in their tree representation. Default is 3
+            max_initial_depth: restricts depth of generated functions in their tree representation.
+            min_initial_depth: restricts depth of generated functions in their tree representation.
             max_depth: stablishes the limit for the tree depth, to be tested after every mutation or crossover. Default is 15
             max_nodes: stablishes the limit for the tree nodes, to be tested after every mutation or crossover. Default is None and will be calculated with max_depth
             initialisation_method: can be "ramped half half", "grow", "full", "ramped full", "ramped grow", "half half". Default is ramped half half
@@ -60,13 +62,11 @@ class TreeFunctionClass:
             arities.append(arity)
         self.max_arity = max(arities)
         self.max_initial_depth = max_initial_depth
+        self.min_initial_depth = min_initial_depth
         self.max_depth = max_depth
         self.max_nodes = max_nodes
-        #if self.max_depth is None:
-        #    self.max_depth = int(max_nodes)
         if self.max_nodes is None:
             self.max_nodes = sum([math.pow(self.max_arity,i) for i in range(self.max_depth)])
-        #print("self.max_arity, self.max_nodes",self.max_arity, self.max_nodes)
 
         self.initialisation_method = initialisation_method
         self.mutation_method = mutation_method
@@ -147,7 +147,7 @@ class TreeFunctionClass:
             part_size = int(size / parts)
             remainder_size = size % parts
             population = [self._generate_individual_full(self.max_initial_depth) for _ in range(remainder_size)]
-            for max_depth in range(2, self.max_initial_depth+1):
+            for max_depth in range(self.min_initial_depth, self.max_initial_depth+1):
                 first_half = math.ceil(part_size/2)
                 population.extend([self._generate_individual_grow(max_depth) for _ in range(first_half)])
                 second_half = part_size - first_half
@@ -158,15 +158,15 @@ class TreeFunctionClass:
             part_size = int(size / parts)
             remainder_size = size % parts
             population = [self._generate_individual_grow(self.max_initial_depth) for _ in range(remainder_size)]
-            for max_depth in range(2, self.max_initial_depth+1):
-                population = [self._generate_individual_grow(max_depth) for _ in range(part_size)]
+            for max_depth in range(self.min_initial_depth, self.max_initial_depth+1):
+                population = [self._generate_individual_grow(max_depth, self.min_initial_depth) for _ in range(part_size)]
 
         elif self.initialisation_method == "full":
             parts = self.max_initial_depth - 1
             part_size = int(size / parts)
             remainder_size = size % parts
             population = [self._generate_individual_full(self.max_initial_depth) for _ in range(remainder_size)]
-            for max_depth in range(2, self.max_initial_depth+1):
+            for max_depth in range(self.min_initial_depth, self.max_initial_depth+1):
                 population = [self._generate_individual_full(max_depth) for _ in range(part_size)]
 
         else:

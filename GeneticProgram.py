@@ -47,6 +47,7 @@ class IndividualClass:
         self.fenotype = fenotype
         self.evaluation = []
         self.objective_values = objective_values # should be between 0 and 1 (0 is the best)
+        #self.relative_objective_values = None #to test
         
     def __lt__(self, other): #less than
         """
@@ -350,8 +351,6 @@ class GeneticProgramClass:
         """
         Evaluates the entire population
         """
-        self.max_population_size = max([ind.fenotype.nodes_count() for ind in self.population])
-        self.max_population_depth = max([ind.fenotype.my_depth() for ind in self.population])
 
         for ind_idx, individual in enumerate(self.population):
             if individual.objective_values is None:
@@ -408,7 +407,7 @@ class GeneticProgramClass:
         for obj_idx in range(self.objectives):
             #interpolate
             temp_objective_list = [ind.objective_values[obj_idx] for ind in self.population]
-            """ This to interpolate and give same importance?
+            #This to interpolate and give same importance?
             max_ov = max(temp_objective_list)
             min_ov = min(temp_objective_list)
             if max_ov == min_ov:
@@ -416,9 +415,10 @@ class GeneticProgramClass:
             elif abs(max_ov) == np.inf or abs(min_ov) == np.inf:
                 print("In crowding distance: objective value is infinite, skipping interpolation")
             else:
-                interpolate_function = interp1d([max_ov, min_ov],[0,1])
-                temp_objective_list = interpolate_function(temp_objective_list)
-            """
+                #interpolate_function = interp1d([min_ov, max_ov],[0,1])
+                #temp_objective_list = interpolate_function(temp_objective_list)
+                temp_objective_list = [np.interp(value,[min_ov, max_ov],[0,1]) for value in temp_objective_list]
+            
             objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
 
         for obj_idx in range(self.objectives):
@@ -562,10 +562,10 @@ class GeneticProgramClass:
         return math.sqrt(self.mse(individual))
 
     def tree_size(self, individual):
-        return individual.fenotype.nodes_count()/self.max_population_size
+        return individual.fenotype.nodes_count()#/self.max_population_size
 
     def tree_depth(self, individual):
-        return individual.fenotype.my_depth()/self.max_population_depth
+        return individual.fenotype.my_depth()#/self.max_population_depth
 
     def accuracy(self, individual):
         y = self.y

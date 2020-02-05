@@ -9,9 +9,7 @@ Created on Thu Dec 05 10:52:52 2019
 #to do:
 #time limit as argument
 #min initial depth as argument
-#max tree size as argument
 #minimize or maximize for each objective?
-#tree size 0 to 1 setting max or calculating it
 
 import os
 import csv
@@ -101,14 +99,19 @@ parser.add_argument("-mid",
                     default=5,
                     type=int,
                     help="tree function initial population max depth")
+parser.add_argument("-minid",
+                    "--min_initial_depth",
+                    default=3,
+                    type=int,
+                    help="tree function initial population min depth")
 parser.add_argument("-md",
                     "--max_depth",
-                    default=8,
+                    default=20,
                     type=int,
                     help="tree function max depth allowed")
 parser.add_argument("-mn",
                     "--max_nodes",
-                    default=1200,
+                    default=None,
                     type=int,
                     help="tree function max nodes allowed")
 parser.add_argument("-im",
@@ -211,6 +214,7 @@ TF = tf.TreeFunctionClass(
                             features = features,
                             operators = operators,
                             max_initial_depth = args.max_initial_depth,
+                            min_initial_depth = args.min_initial_depth,
                             max_depth = args.max_depth,
                             max_nodes = args.max_nodes,
                             initialisation_method = args.initialisation_method,
@@ -386,58 +390,58 @@ for run in range(args.runs):
     
 
 
-#Final logs
-final_lists = {key[1]:[] for key, _ in all_genlogs[0].items()}
-for genlogs in all_genlogs:
-    for run_idx, (key, value) in enumerate(genlogs.items()):
-        temp_list = []
-        if str(key[0]) == str(args.generations):
-            final_lists[key[1]].append(value)
-
-with open(path + "results_file.csv", mode = "w") as f:
-    writer = csv.writer(f, delimiter = ",")
-    writer.writerow(["experiment_name",str(args.experiment_name)])
-    writer.writerow(["execution_command"," ".join(sys.argv[1:])])
-    writer.writerow(["full_execution_time",str(run_time)])
-    writer.writerow(["problem",str(args.problem)])
-    writer.writerow(["problem_variable",str(args.problem_variable)])
-    writer.writerow(["runs",str(args.runs)])
-    writer.writerow(["model","Tree function"])
-    writer.writerow(["tree_features",str(features)])
-    writer.writerow(["tree_operators" ,str(args.operators)])
-    writer.writerow(["min_initial_tree_depth","2"])
-    writer.writerow(["max_initial_tree_depth",str(args.max_initial_depth)])
-    writer.writerow(["max_tree_depth" ,str(args.max_depth)])
-    writer.writerow(["max_tree_size" ,"not set"])
-    writer.writerow(["initialisation_method" ,str(args.initialisation_method)])
-    writer.writerow(["population_size" ,str(args.population_size)])
-    writer.writerow(["generations" ,str(args.generations)])
-    writer.writerow(["sampling_method" ,str(args.sampling_method)])
-    writer.writerow(["tournament_size" ,str(args.tournament_size)])
-    writer.writerow(["mutation_ratio" ,str(args.mutation_ratio)])
-    writer.writerow(["objective_functions" ,str(objective_functions)])
-    writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions))]])
-    writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
-    writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
-    for obj_idx in range(len(objective_functions)):
-        writer.writerow(["best_overall_individual_obj_"+str(obj_idx + 1)+ "_value" ,str(min(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"]))]) #min max dependent
-        writer.writerow(["best_obj_"+str(obj_idx + 1)+ "_values_by_run" ,str(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"])]) #min max dependent      
-    for key, value in final_lists.items():
-        if not isinstance(value[0][0], list) and not isinstance(value[0][0], str):
-            values = [str(v) for v in value]
-            writer.writerow(["avg_last_gen_" + str(key), str(np.mean([float(x[0]) for x in value]))])
-            writer.writerow(["std_last_gen_" + str(key), str(np.std([float(x[0]) for x in value]))])
-
-with open(path + "results_by_run.csv", mode='w') as last_file:
-    last_writer = csv.writer(last_file, delimiter = ",")
-    for run_idx, genlogs in enumerate(all_genlogs):
-        last_writer.writerow(["results_from experiment_name: ",str(args.experiment_name)])
-        last_writer.writerow(["run",str(run_idx)])
-        last_writer.writerow(["last_generation_results:"])
-        for key, value in genlogs.items():
+    #Final logs
+    final_lists = {key[1]:[] for key, _ in all_genlogs[0].items()}
+    for genlogs in all_genlogs:
+        for run_idx, (key, value) in enumerate(genlogs.items()):
+            temp_list = []
             if str(key[0]) == str(args.generations):
+                final_lists[key[1]].append(value)
+
+    with open(path + "results_file.csv", mode = "w") as f:
+        writer = csv.writer(f, delimiter = ",")
+        writer.writerow(["experiment_name",str(args.experiment_name)])
+        writer.writerow(["execution_command"," ".join(sys.argv[1:])])
+        writer.writerow(["full_execution_time",str(run_time)])
+        writer.writerow(["problem",str(args.problem)])
+        writer.writerow(["problem_variable",str(args.problem_variable)])
+        writer.writerow(["runs",str(args.runs)])
+        writer.writerow(["model","Tree function"])
+        writer.writerow(["tree_features",str(features)])
+        writer.writerow(["tree_operators" ,str(args.operators)])
+        writer.writerow(["min_initial_tree_depth","2"])
+        writer.writerow(["max_initial_tree_depth",str(args.max_initial_depth)])
+        writer.writerow(["max_tree_depth" ,str(args.max_depth)])
+        writer.writerow(["max_tree_size" ,"not set"])
+        writer.writerow(["initialisation_method" ,str(args.initialisation_method)])
+        writer.writerow(["population_size" ,str(args.population_size)])
+        writer.writerow(["generations" ,str(args.generations)])
+        writer.writerow(["sampling_method" ,str(args.sampling_method)])
+        writer.writerow(["tournament_size" ,str(args.tournament_size)])
+        writer.writerow(["mutation_ratio" ,str(args.mutation_ratio)])
+        writer.writerow(["objective_functions" ,str(objective_functions)])
+        writer.writerow(["objective_functions_goals" ,["minimize" for _ in range(len(objective_functions))]])
+        writer.writerow(["objective_functions_arguments" ,str(objective_functions_arguments)])
+        writer.writerow(["runs_avg_run_time" ,str(np.mean(run_times))])
+        for obj_idx in range(len(objective_functions)):
+            writer.writerow(["best_overall_individual_obj_"+str(obj_idx + 1)+ "_value" ,str(min(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"]))]) #min max dependent
+            writer.writerow(["best_obj_"+str(obj_idx + 1)+ "_values_by_run" ,str(final_lists["best_value_reached_for_objective_" + str(obj_idx + 1) + "_(min_is_best)"])]) #min max dependent      
+        for key, value in final_lists.items():
+            if not isinstance(value[0][0], list) and not isinstance(value[0][0], str):
                 values = [str(v) for v in value]
-                last_writer.writerow([str(key[1]), *values])
+                writer.writerow(["avg_last_gen_" + str(key), str(np.mean([float(x[0]) for x in value]))])
+                writer.writerow(["std_last_gen_" + str(key), str(np.std([float(x[0]) for x in value]))])
+
+    with open(path + "results_by_run.csv", mode='w') as last_file:
+        last_writer = csv.writer(last_file, delimiter = ",")
+        for run_idx, genlogs in enumerate(all_genlogs):
+            last_writer.writerow(["results_from experiment_name: ",str(args.experiment_name)])
+            last_writer.writerow(["run",str(run_idx)])
+            last_writer.writerow(["last_generation_results:"])
+            for key, value in genlogs.items():
+                if str(key[0]) == str(args.generations):
+                    values = [str(v) for v in value]
+                    last_writer.writerow([str(key[1]), *values])
 
 
 

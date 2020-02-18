@@ -33,6 +33,8 @@ class TreeFunctionClass:
     def __init__(self,
             features,
             operators,
+            terminals_constant_ratio = None,
+            terminals_constant_type = "float",
             max_initial_depth = 5,
             min_initial_depth = 3,
             max_depth = 15,
@@ -45,6 +47,7 @@ class TreeFunctionClass:
             features: number of features the tree will expect
             operators: a list with all the operations to be considered
         Keyword arguments:
+            terminals_constant_ratio: if None, a constant is generated as another option along with the features. 0 means no constants, 1 means all constants. Default is None
             max_initial_depth: restricts depth of generated functions in their tree representation.
             min_initial_depth: restricts depth of generated functions in their tree representation.
             max_depth: stablishes the limit for the tree depth, to be tested after every mutation or crossover. Default is 15
@@ -60,6 +63,8 @@ class TreeFunctionClass:
             sig = signature(operator)
             arity = len(sig.parameters)
             arities.append(arity)
+        self.terminals_constant_ratio = terminals_constant_ratio
+        self.terminals_constant_type = terminals_constant_type
         self.max_arity = max(arities)
         self.max_initial_depth = max_initial_depth
         self.min_initial_depth = min_initial_depth
@@ -76,10 +81,25 @@ class TreeFunctionClass:
         """
         Generates a number that can be an index for the features vector, or a random number between -1 and 1
         """
-        value = rd.randint(0, self.features)
-        if value == self.features:
-            value = np.random.uniform(low=-1, high=1)
+        if self.terminals_constant_ratio is None:
+            value = rd.randint(0, self.features)
+            if value == self.features:
+                value = self._generate_constant()
+        else:
+            if np.random.uniform() < self.terminals_constant_ratio:
+                value = self._generate_constant()
+            else:
+                value = rd.randint(0, self.features - 1)
         return value
+
+    def _generate_constant(self):
+        if self.terminals_constant_type == "float":
+            return np.random.uniform(low=-1, high=1)
+        elif self.terminals_constant_type == "boolean":
+            return rd.choice([True,False])
+        else:
+            return rd.choice([-1,0,1])
+
 
     def _generate_operator(self):
         """

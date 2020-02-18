@@ -342,6 +342,8 @@ class GeneticProgramClass:
             objective_function = self.sum_absolute_errors
         elif name == "mean_absolute_errors":
             objective_function = self.mean_absolute_errors
+        elif name == "mistakes":
+            objective_function = self.mistakes
         else:
             print("wrong objective function name")
         return objective_function
@@ -405,21 +407,18 @@ class GeneticProgramClass:
         crowding_distances = [[0 for _ in range(self.objectives)] for _ in range(len(self.population))]
         objective_values_list = [[] for _ in range(self.objectives)]
         for obj_idx in range(self.objectives):
-            #interpolate
+            #print("obj_idx",obj_idx)
             temp_objective_list = [ind.objective_values[obj_idx] for ind in self.population]
-            #This to interpolate and give same importance?
+            #print("Before normalizing:\n",temp_objective_list)
             max_ov = max(temp_objective_list)
             min_ov = min(temp_objective_list)
-            if max_ov == min_ov:
-                print("In crowding distance: objective values are in the same range, skipping interpolation")
-            elif abs(max_ov) == np.inf or abs(min_ov) == np.inf:
-                print("In crowding distance: objective value is infinite, skipping interpolation")
+            if max_ov == min_ov or abs(max_ov) == np.inf or abs(min_ov) == np.inf:
+                print("Error source: crowding distance")
             else:
-                #interpolate_function = interp1d([min_ov, max_ov],[0,1])
-                #temp_objective_list = interpolate_function(temp_objective_list)
                 temp_objective_list = [np.interp(value,[min_ov, max_ov],[0,1]) for value in temp_objective_list]
-            
+                #print("After normalizing:\n",temp_objective_list)
             objective_values_list[obj_idx] = sorted([(obj_v, ind_idx) for ind_idx, obj_v in enumerate(temp_objective_list)], key = lambda x: x[0])
+            #print("objective_values_list\n",objective_values_list[obj_idx])
 
         for obj_idx in range(self.objectives):
             for sorted_idx, (objective_value, ind_idx) in enumerate(objective_values_list[obj_idx]):
@@ -428,11 +427,15 @@ class GeneticProgramClass:
                 else:
                     abs1 = abs(objective_values_list[obj_idx][sorted_idx-1][0] - objective_value)
                     abs2 = abs(objective_values_list[obj_idx][sorted_idx+1][0] - objective_value)
-                    crowding_distances[ind_idx][obj_idx] = (abs1 + abs2)/2
+                    crowding_distances[ind_idx][obj_idx] = abs1 + abs2
+                    #print("abs1 + abs2",abs1,abs2, crowding_distances[ind_idx][obj_idx])
 
         crowding_distance = [np.mean(crowding_distances[ind_idx]) for ind_idx in range(len(self.population))]
+        #print("crowding_distance\n",crowding_distance)
         max_cd = max([x for x in crowding_distance if x != np.inf])
         inverted_crowding_distances = [max_cd - cd if cd != np.inf else -np.inf for cd in crowding_distance]
+        #print("inverted_crowding_distances\n",inverted_crowding_distances)
+        #input("pause")
 
         return inverted_crowding_distances
 
@@ -594,6 +597,12 @@ class GeneticProgramClass:
         sum_absolute_errors = sum([abs(y_predicted[i]-y[i]) for i in range(len(y))])
         mean_absolute_errors = sum_absolute_errors/len(y)
         return mean_absolute_errors
+
+    def mistakes(self, individual):
+        y = self.y
+        y_predicted = self.Model.evaluate(individual.fenotype, self.x)
+        mistakes = sum([1 for idx, value in enumerate(y_predicted) if y_predicted[idx] == y[idx]])
+        return mistakes
 
 def map_to_binary(values, threshold = 0, class_over_threshold = 1, class_below_threshold = 0):
     """

@@ -43,3 +43,21 @@ def signed_if(condition, a, b):
         return a
     else:
         return b
+
+def b_and(a, b):
+    return a and b
+
+def b_or(a, b):
+    return a or b
+
+def b_not(a):
+    return not a
+
+def b_if(condition, a, b):
+    """
+    Condition is a boolean
+    """
+    if condition:
+        return a
+    else:
+        return b

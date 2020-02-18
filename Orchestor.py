@@ -78,7 +78,7 @@ parser.add_argument("-p",
                     "--problem",
                     default="pedestrian",
                     type=str,
-                    help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbolic_regression")
+                    help="problem to be solved: pedestrian, pedestrian_old, MNIST, symbolic_regression, even_parity")
 parser.add_argument("-pv",
                     "--problem_variable",
                     default=None, #it was "0"
@@ -118,7 +118,7 @@ parser.add_argument("-im",
                     "--initialisation_method",
                     default="ramped half half",
                     type=str,
-                    help="genetic program's initial population generation method")
+                    help="genetic program's initial population generation method, can be full, grow, ramped grow, ramped half half")
 parser.add_argument("-mm",
                     "--mutation_method",
                     default="subtree",
@@ -146,7 +146,7 @@ parser.add_argument("-ts",
                     help="genetic program's tournament size, if tournament selection method enabled")
 parser.add_argument("-op",
                     "--operators",
-                    default="add,sub,mul,safe_divide_numerator",
+                    default="add,sub,mul,safe_divide_zero",
                     type=str,
                     help="tree function operators available in this format: add,sub,mul,safe_divide_numerator,signed_if,sin,cos")
 parser.add_argument("-et",
@@ -158,7 +158,7 @@ parser.add_argument("-of",
                     "--objective_functions",
                     default="single_goal_accuracy,single_goal_accuracy",
                     type=str,
-                    help="can be single_goal_accuracy, mse, accuracy, tree_depth, tree_size, rmse, errors_by_threshold")
+                    help="can be single_goal_accuracy, mse, accuracy, tree_depth, tree_size, rmse, errors_by_threshold, mistakes")
 parser.add_argument("-ofa",
                     "--objective_functions_arguments",
                     default="",
@@ -169,6 +169,16 @@ parser.add_argument("-r",
                     default=1,
                     type=int,
                     help="times to run same genetic program")
+parser.add_argument("-tcr",
+                    "--terminals_constant_ratio",
+                    default=None,
+                    type=float,
+                    help="if None (default), a random constant is considered as other feature")
+parser.add_argument("-tct",
+                    "--terminals_constant_type",
+                    default="float",
+                    type=str,
+                    help="can be boolean or float")
 args=parser.parse_args()
 
 
@@ -188,6 +198,14 @@ for operator_string in [operator_string for operator_string in args.operators.sp
         operators.append(math.sin)
     elif operator_string == "cos":
         operators.append(math.cos)
+    elif operator_string == "and":
+        operators.append(operator.and_)
+    elif operator_string == "or":
+        operators.append(operator.or_)
+    elif operator_string == "if":
+        operators.append(ops.b_if)
+    elif operator_string == "not":
+        operators.append(operator.not_)
 
 objective_functions = [objective_function_string for objective_function_string in args.objective_functions.split(',')]
 if len(args.objective_functions_arguments) > 0:
@@ -213,6 +231,8 @@ features = len(x_train[0])
 TF = tf.TreeFunctionClass(
                             features = features,
                             operators = operators,
+                            terminals_constant_ratio = args.terminals_constant_ratio,
+                            terminals_constant_type = args.terminals_constant_type,
                             max_initial_depth = args.max_initial_depth,
                             min_initial_depth = args.min_initial_depth,
                             max_depth = args.max_depth,

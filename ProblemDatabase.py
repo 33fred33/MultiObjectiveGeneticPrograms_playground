@@ -79,6 +79,30 @@ def read_data_file(filename):
                     4)),
             np.array(d[b"labels"]))
 
+def create_boolean_table(variables, current = 0):
+    if current == variables-1:
+        return [[True],[False]]
+    else:
+        built_list = create_boolean_table(variables, current = current+1)
+        new_list = []
+        for row in built_list:
+            trow = [x for x in row]
+            trow.append(True)
+            frow = [x for x in row]
+            frow.append(False)
+            new_list.extend([trow])
+            new_list.extend([frow])
+        return new_list
+
+def even_parity_function(data):
+    y = []
+    for row in data:
+        if sum(row) % 2 == 0:
+            y.append(True)
+        else:
+            y.append(False)
+    return y
+
 class Problem:
     def __init__(self, name, variant):
         self.name = name
@@ -139,6 +163,15 @@ class Problem:
 
 
             self.problem_type = "classification"
+
+        elif name == "even_parity":
+            self.x_train = create_boolean_table(int(variant))
+            self.y_train = even_parity_function(self.x_train)
+            self.x_test = self.x_train
+            self.y_test = self.y_train
+            self.problem_type = "approximation"
+
+
 
         else:
             print("Error source: Wrong problem name")

@@ -24,9 +24,6 @@ import time
 import math
 import sys
 import pickle
-from sklearn.model_selection import train_test_split
-from datasets.load_pedestrian import load_pedestrian_data
-from skimage.feature import hog
 import numpy as np
 import argparse
 import random as rd
@@ -173,7 +170,7 @@ path = verify_path(args.experiment_name)
 
 GPs = {}
 #ensembles = {}
-for digit in range(10):
+for digit in range(6,10):
 
     Problem = problems.Problem(
                                 name =args.problem, 
